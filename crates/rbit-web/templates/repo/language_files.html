@@ -8,7 +8,7 @@
     <h1 id="language-files-title" class="font-medium">{{ language }} files <span class="ml-2 text-ink-faint">{{ pagination.total }}</span></h1>
     <button type="button" class="btn btn-ghost btn-icon" data-language-close aria-label="Close file browser" hidden>{% call ui::icon("x", "size-4") %}{% endcall %}</button>
   </div>
-  <div class="px-4">{% include "repo/listing_controls.html" %}</div>
+  {% let search_label = "Find files" %}<div class="px-4">{% include "repo/listing_controls.html" %}</div>
   <div class="language-browser">
   <nav class="language-file-list" aria-label="Language files" data-file-outline>
     <ul class="diff-tree">

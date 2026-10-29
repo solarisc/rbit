@@ -385,7 +385,9 @@ async fn render_tree(
     let urls = &loaded.urls;
     let filtered = matching_entries(&view.entries, &listing_query.q);
     let document_query = readme.as_ref().map(|document| vec![("document".to_owned(), document.path.clone())]).unwrap_or_default();
-    let pagination = Pagination::new(filtered.len(), &listing_query, urls.tree(&view.commit.id, &path), document_query);
+    // The search form and page links keep the ref the visitor chose (a branch stays a
+    // branch); only the commit cells below are pinned to the resolved commit.
+    let pagination = Pagination::new(filtered.len(), &listing_query, urls.tree(&revision, &path), document_query);
     let cells = Pagination::new(filtered.len(), &listing_query, entry_commits_url(urls, &view.commit.id, &path), vec![]);
     let entries = filtered[pagination.start..pagination.end]
         .iter()

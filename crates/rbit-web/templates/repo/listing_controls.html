@@ -1,12 +1,21 @@
-<div class="my-3 flex flex-wrap items-center justify-between gap-3">
-  <form method="get" data-listing-search action="{{ pagination.action }}" class="flex gap-2" role="search">
+{% import "macros.html" as ui %}
+{#- Search and page links of a bounded listing; expects `pagination: Pagination` and
+    `search_label` (the box's placeholder, e.g. "Search branches"). Enter submits the
+    search; the count and page links appear only when there is something to say. -#}
+<div class="my-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+  <form method="get" data-listing-search action="{{ pagination.action }}" class="relative min-w-0 flex-1 sm:max-w-xs" role="search">
     {% for param in pagination.extra %}<input type="hidden" name="{{ param.0 }}" value="{{ param.1 }}">{% endfor %}
-    <input type="search" name="q" value="{{ pagination.query }}" maxlength="100" class="input min-w-0" aria-label="Search this listing" placeholder="Search names">
-    <button class="btn" type="submit">Search</button>
+    {% call ui::icon("search", "pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-ink-faint") %}{% endcall %}
+    <input type="search" name="q" value="{{ pagination.query }}" maxlength="100" class="input pl-8" aria-label="{{ search_label }}" placeholder="{{ search_label }}…" autocomplete="off" autocapitalize="none" spellcheck="false">
   </form>
-  <nav class="flex items-center gap-3 text-xs text-ink-muted" aria-label="Listing pages">
-    {% if let Some(url) = pagination.previous %}<a class="btn" href="{{ url }}" data-listing-page>Previous</a>{% endif %}
-    <span>{{ pagination.total }} results · {{ pagination.page }} / {{ pagination.pages }}</span>
-    {% if let Some(url) = pagination.next %}<a class="btn" href="{{ url }}" data-listing-page>Next</a>{% endif %}
+  {% if !pagination.query.is_empty() %}
+  <p class="text-xs text-ink-muted"><span class="tabular-nums">{{ pagination.total }}</span> {% if pagination.total == 1 %}result{% else %}results{% endif %} for “{{ pagination.query }}” · <a class="link" href="{{ pagination.clear_url() }}" data-listing-page>Clear</a></p>
+  {% endif %}
+  {% if pagination.pages > 1 %}
+  <nav class="ml-auto flex items-center gap-2 text-xs text-ink-muted" aria-label="Listing pages">
+    {% if let Some(url) = pagination.previous %}<a class="btn" href="{{ url }}" data-listing-page>{% call ui::icon("chevron-left", "size-3.5") %}{% endcall %}Previous</a>{% endif %}
+    <span class="tabular-nums">Page {{ pagination.page }} of {{ pagination.pages }}</span>
+    {% if let Some(url) = pagination.next %}<a class="btn" href="{{ url }}" data-listing-page>Next{% call ui::icon("chevron-right", "size-3.5") %}{% endcall %}</a>{% endif %}
   </nav>
+  {% endif %}
 </div>

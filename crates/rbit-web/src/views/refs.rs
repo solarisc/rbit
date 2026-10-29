@@ -67,6 +67,11 @@ pub struct RefsPage {
 }
 
 impl RefsPage {
+    /// The search box's label and placeholder.
+    pub fn search_label(&self) -> &'static str {
+        if self.kind == "branch" { "Search branches" } else { "Search tags" }
+    }
+
     /// Marks the branches named in `protected` (on the branches page only).
     #[must_use]
     pub fn with_protected(mut self, protected: &[String]) -> Self {

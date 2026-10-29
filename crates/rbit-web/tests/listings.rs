@@ -90,7 +90,12 @@ async fn listings_page_search_pin_metadata_and_preserve_private_access() {
     };
     let (_, first) = get("/listing-owner/public".into()).await;
     assert_eq!(first.matches("id=\"entry-commit-").count(), 100);
-    assert!(first.contains(&format!("/tree/{head}?q=")), "next page is pinned");
+    // Search and page links keep the branch the visitor is on rather than its commit, so
+    // the ref switcher does not turn into a commit id.
+    assert!(first.contains("/tree/main?q="), "next page stays on the branch");
+    assert!(!first.contains(&format!("/tree/{head}?q=")));
+    // The lazily loaded commit cells stay pinned to the commit that was listed.
+    assert!(first.contains(&format!("/tree-commits/{head}?")));
     let (_, second) = get(format!("/listing-owner/public/tree/{head}?page=2")).await;
     assert_eq!(second.matches("id=\"entry-commit-").count(), 100);
     assert!(second.contains("id=\"entry-commit-100\""));

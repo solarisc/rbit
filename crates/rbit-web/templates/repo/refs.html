@@ -14,7 +14,7 @@
 </div>
 
 {% if graph.is_none() %}
-{% include "repo/listing_controls.html" %}
+{% let search_label = self.search_label() %}{% include "repo/listing_controls.html" %}
 {% endif %}
 <div class="box">
   {% if let Some(graph) = graph %}

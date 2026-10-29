@@ -63,6 +63,16 @@ impl Pagination {
         }
         url
     }
+
+    /// The listing without its search: the action with only the extra parameters.
+    pub fn clear_url(&self) -> String {
+        let encode = |s: &str| utf8_percent_encode(s, NON_ALPHANUMERIC).to_string();
+        let mut url = self.action.clone();
+        for (index, (name, value)) in self.extra.iter().enumerate() {
+            let _ = write!(url, "{}{}={}", if index == 0 { '?' } else { '&' }, encode(name), encode(value));
+        }
+        url
+    }
 }
 
 #[cfg(test)]
@@ -78,10 +88,12 @@ mod tests {
         );
         assert_eq!((p.page, p.start, p.end), (3, 200, 205));
         assert!(p.next.is_none());
+        assert_eq!(p.clear_url(), "/files?revision=a%2Fb");
         let previous = p.previous.unwrap();
         assert!(previous.contains("q=a%20%26%20%23"));
         assert!(previous.contains("revision=a%2Fb"));
         let empty = Pagination::new(0, &ListQuery::default(), "/files".into(), vec![]);
         assert_eq!((empty.start, empty.end, empty.pages), (0, 0, 1));
+        assert_eq!(empty.clear_url(), "/files");
     }
 }
