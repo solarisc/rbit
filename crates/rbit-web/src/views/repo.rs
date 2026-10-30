@@ -81,10 +81,10 @@ pub struct RepoHeader {
 }
 
 impl RepoHeader {
-    /// Commits, branches, tags and releases have no tab of their own: like GitHub, they
-    /// are pages of the Code tab, which stays selected on them.
+    /// Branches, tags and releases have no tab of their own: like GitHub, they are pages
+    /// of the Code tab, which stays selected on them. Commits keeps its own tab.
     pub fn code_tab_current(&self) -> bool {
-        matches!(self.active_tab, "code" | "commits" | "branches" | "tags" | "releases")
+        matches!(self.active_tab, "code" | "branches" | "tags" | "releases")
     }
 }
 
@@ -382,6 +382,7 @@ impl CommitDay {
 #[derive(Debug, Template, WebTemplate)]
 #[template(path = "repo/commits.html")]
 pub struct CommitsPage {
+    pub contributions: super::contributions::ContributionCalendar,
     pub page: Page,
     pub header: RepoHeader,
     pub switcher: RefSwitcher,

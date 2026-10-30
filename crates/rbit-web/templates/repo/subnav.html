@@ -24,12 +24,13 @@
     </p>
   </div>
 
-  {#- Commits, branches, tags and releases are pages of the Code tab, as on GitHub: the code
-      page links to each, so this row keeps to the places people switch between. -#}
+  {#- Branches, tags and releases are pages of the Code tab, as on GitHub: the code page
+      links to each, so this row keeps to the places people switch between. -#}
   <nav class="repo-tabs -mb-px flex min-w-0 gap-1 scroll-tabs" aria-label="Repository">
     <a class="tab" data-repo-tab="code" data-preload="visible" href="{{ header.home_url }}" {% if header.code_tab_current() %}aria-current="page"{% endif %}>{% call ui::icon("code", "tab-icon") %}{% endcall %}Code</a>
     <a class="tab" data-repo-tab="issues" data-preload="visible" href="{{ header.issues_url }}" {% if header.active_tab == "issues" %}aria-current="page"{% endif %}>{% call ui::icon("circle-dot", "tab-icon") %}{% endcall %}Issues{% if header.open_issues > 0 %}<span class="counter">{{ header.open_issues }}</span>{% endif %}</a>
     <a class="tab" data-repo-tab="pulls" data-preload="visible" href="{{ header.pulls_url }}" {% if header.active_tab == "pulls" %}aria-current="page"{% endif %}>{% call ui::icon("git-pull-request", "tab-icon") %}{% endcall %}Pull requests{% if header.open_pulls > 0 %}<span class="counter">{{ header.open_pulls }}</span>{% endif %}</a>
+    <a class="tab" data-repo-tab="commits" data-preload="visible" href="{{ header.commits_url }}" {% if header.active_tab == "commits" %}aria-current="page"{% endif %}>{% call ui::icon("commit", "tab-icon") %}{% endcall %}Commits</a>
     {% if let Some(actions_url) = header.actions_url %}
     <a class="tab" data-repo-tab="actions" data-preload="visible" href="{{ actions_url }}" {% if header.active_tab == "actions" %}aria-current="page"{% endif %}>{% call ui::icon("circle-play", "tab-icon") %}{% endcall %}Actions</a>
     {% endif %}

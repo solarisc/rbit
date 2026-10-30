@@ -169,26 +169,42 @@ async fn assert_contribution_pages(router: axum::Router) {
         assert!(html.contains("Commit activity in 2024"));
         assert!(!html.contains("<main") && !html.contains("<html"));
     }
-    for url in [
-        "/acme/public",
-        "/alice/empty",
-        "/acme/public/commits",
-        "/acme/public/commits/main?year=2024&page=2&calendar=fragment",
-        "/alice/empty/commits?year=2024&calendar=1",
-    ] {
+    for url in ["/acme/public", "/alice/empty"] {
         let response = router.clone().oneshot(Request::builder().uri(url).body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
-        let body = axum::body::to_bytes(response.into_body(), 2_000_000).await.unwrap();
-        let html = String::from_utf8(body.to_vec()).unwrap();
-        assert!(!html.contains("id=\"contributions-title\"") && !html.contains("calendar=fragment"), "{url}: heatmap belongs on Activity");
-        assert!(html.contains("data-repo-tab=\"activity\""));
-        if url.contains("page=2") {
-            assert!(html.contains("/commits/main?page=1"), "commit pagination is independent of calendar years");
-            assert!(html.contains("href=\"/acme/public/commits\" aria-current=\"page\""));
-        } else if url == "/acme/public/commits" {
-            assert!(html.contains("backdated") && html.contains("leap day"), "commit history still renders");
-        }
+        let html = String::from_utf8(axum::body::to_bytes(response.into_body(), 2_000_000).await.unwrap().to_vec()).unwrap();
+        assert!(!html.contains("id=\"contributions-title\"") && !html.contains("calendar=fragment"), "{url}: no heatmap on the code page");
+        assert!(html.contains("data-repo-tab=\"activity\"") && html.contains("data-repo-tab=\"commits\""));
     }
+    // The Commits page heads with the same calendar, loaded after the page.
+    let response = router.clone().oneshot(Request::builder().uri("/acme/public/commits").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let html = String::from_utf8(axum::body::to_bytes(response.into_body(), 2_000_000).await.unwrap().to_vec()).unwrap();
+    assert!(html.contains("calendar=fragment") && !html.contains("data-contribution-day=\""), "the calendar is deferred");
+    assert!(html.contains("backdated") && html.contains("leap day"), "commit history still renders");
+    assert!(html.contains("href=\"/acme/public/commits\" aria-current=\"page\""), "the Commits tab is current");
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/acme/public/commits/main?year=2024&page=2&calendar=fragment")
+                .header("HX-Request", "true")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let html = String::from_utf8(axum::body::to_bytes(response.into_body(), 2_000_000).await.unwrap().to_vec()).unwrap();
+    assert!(html.contains("3 commits in 2024") && !html.contains("<main"), "the deferred load is the calendar alone");
+    let response = router
+        .clone()
+        .oneshot(Request::builder().uri("/alice/empty/commits?year=2024&calendar=1").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let html = String::from_utf8(axum::body::to_bytes(response.into_body(), 2_000_000).await.unwrap().to_vec()).unwrap();
+    assert!(html.contains("No matching commits in this year."));
     let response =
         router.clone().oneshot(Request::builder().uri("/alice/private/activity?year=2024").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
