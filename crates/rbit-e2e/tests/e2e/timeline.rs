@@ -130,7 +130,7 @@ async fn comments_state_and_lock_redirect_to_the_canonical_page() {
 
     // The Issues and Pull requests tabs count open threads (issue 1 open, pull 2 closed).
     let home = bob.get("/alice/demo").await;
-    home.expect_status(StatusCode::OK).expect_contains(&[r#"<span class="badge tabular-nums">1</span>"#]);
+    home.expect_status(StatusCode::OK).expect_contains(&[r#"<span class="counter">1</span>"#]);
 
     store.close().await;
 }

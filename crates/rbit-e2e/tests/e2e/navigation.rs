@@ -22,7 +22,7 @@ async fn pages_of_the_same_repository_are_sent_partially() {
     partial.expect_status(StatusCode::OK).expect_contains(&[
         "<main id=\"main\"",
         "<div id=\"repo-subnav\" hx-swap-oob=\"true\" data-repo-scope=\"/alice/demo\"",
-        "aria-current=\"page\">Issues",
+        "href=\"/alice/demo/issues\" aria-current=\"page\"",
     ]);
     assert!(partial.body.starts_with("<title>Issues · alice/demo"), "{}", &partial.body[..80.min(partial.body.len())]);
     assert_eq!(partial.header("rbit-partial"), Some("true"));
