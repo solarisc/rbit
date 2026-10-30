@@ -164,6 +164,16 @@ codegen-units = 1
 panic = "abort"
 strip = "symbols"
 
+# Self-hosted deploys (`cargo build --profile deploy`): release optimisation without fat
+# LTO's single-threaded whole-program pass, which re-ran in full on every build and took
+# over ten minutes for a template change. Thin LTO runs in parallel, and incremental
+# builds recompile only the crates that changed. Published releases keep fat LTO.
+[profile.deploy]
+inherits = "release"
+lto = "thin"
+codegen-units = 16
+incremental = true
+
 [profile.dev]
 # File and line numbers for backtraces and panics, without the variable-level debug info
 # that makes rbit-web and every test binary slower to generate and link.
