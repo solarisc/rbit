@@ -1,6 +1,6 @@
 {#- Reviewers and their latest state, with request / remove forms; expects `reviewers: ReviewersView`. -#}
 {% import "macros.html" as ui %}
-<section class="mb-5" aria-label="Reviewers">
+<section class="mb-4 border-b border-line pb-4" aria-label="Reviewers">
   <h2 class="text-xs font-medium text-ink-muted">Reviewers</h2>
   {% if reviewers.reviewers.is_empty() %}
   <p class="mt-1.5 text-xs text-ink-faint">No reviews yet</p>

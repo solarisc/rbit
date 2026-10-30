@@ -1,0 +1,20 @@
+{#- One repository of the fork network in the compare bar; expects `picker`, `side`
+    (`base_repo` or `head_repo`), `label` and `value`. Choosing one compares again. -#}
+{% import "macros.html" as ui %}
+<details class="relative" data-menu>
+  <summary class="btn max-w-full cursor-pointer"><span class="text-ink-muted">{{ label }}:</span><span class="truncate font-semibold">{{ value }}</span>{% call ui::icon("chevron-down", "size-3.5 shrink-0 text-ink-muted") %}{% endcall %}</summary>
+  <div class="menu left-0 w-[min(20rem,calc(100vw-2rem))] p-0">
+    <p class="border-b border-line px-3 py-2 text-[13px] font-semibold">Choose a {{ label }}</p>
+    <fieldset class="max-h-64 overflow-y-auto p-1">
+      <legend class="sr-only">{{ label }}</legend>
+      {% for repository in picker.repositories %}
+      <label class="menu-item cursor-pointer">
+        <input type="radio" name="{{ side }}" value="{{ repository }}" class="sr-only" data-compare-repo {% if repository.as_str() == value %}checked{% endif %}>
+        <span class="flex size-4 shrink-0 items-center justify-center">{% if repository.as_str() == value %}{% call ui::icon("check", "size-4") %}{% endcall %}{% endif %}</span>
+        <span class="truncate font-mono text-xs">{{ repository }}</span>
+      </label>
+      {% endfor %}
+    </fieldset>
+    <noscript><div class="border-t border-line p-2"><button type="submit" class="btn w-full">Compare</button></div></noscript>
+  </div>
+</details>

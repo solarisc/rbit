@@ -106,6 +106,17 @@ impl EntryCommit {
 #[template(path = "repo/entry_commits.html")]
 pub struct EntryCommitsFragment {
     pub cells: Vec<EntryCommitCell>,
+    /// "1,234 commits" for the history link in the root folder's header.
+    pub commit_count: Option<String>,
+}
+
+/// The history link's label: "1 commit", "1,234 commits", or "1,000,000+ commits" when
+/// counting stopped at its cap.
+pub fn commit_count_label(count: usize, capped: bool) -> String {
+    let number = crate::views::home::group_thousands(i64::try_from(count).unwrap_or(i64::MAX));
+    let plus = if capped { "+" } else { "" };
+    let noun = if count == 1 && !capped { "commit" } else { "commits" };
+    format!("{number}{plus} {noun}")
 }
 
 #[cfg(test)]
@@ -145,12 +156,16 @@ mod tests {
                 EntryCommitCell { slot_id: entry_commit_slot(0), commit: Some(commit) },
                 EntryCommitCell { slot_id: entry_commit_slot(1), commit: None },
             ],
+            commit_count: Some(commit_count_label(1234, false)),
         };
         let html = fragment.render().unwrap();
-        assert_eq!(html.matches("hx-swap-oob=\"true\"").count(), 2);
+        assert_eq!(html.matches("hx-swap-oob=\"true\"").count(), 3, "two cells and the commit count");
         assert!(html.contains(r#"id="entry-commit-0""#) && html.contains(r#"id="entry-commit-1""#));
         assert!(html.contains(r#"href="/a/b/commit/0123""#));
         assert!(html.contains("Fix &#60;bug&#62;") || html.contains("Fix &lt;bug&gt;"), "{html}");
+        assert!(html.contains(r#"id="commit-count""#) && html.contains("1,234 commits"));
+        assert_eq!(commit_count_label(1, false), "1 commit");
+        assert_eq!(commit_count_label(1_000_000, true), "1,000,000+ commits");
     }
 
     #[test]

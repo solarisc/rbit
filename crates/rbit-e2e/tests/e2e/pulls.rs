@@ -112,6 +112,7 @@ async fn assert_pull_search(alice: &Client) {
 }
 
 #[tokio::test]
+#[expect(clippy::too_many_lines, reason = "one scenario: fork, review, fixes, approval, squash merge and its timeline")]
 async fn a_fork_pull_request_is_reviewed_fixed_approved_and_squash_merged() {
     let server = server();
     let git = Git::new();
@@ -219,6 +220,8 @@ async fn a_fork_pull_request_is_reviewed_fixed_approved_and_squash_merged() {
     let closed = wait_for_delivery(&inbox, |event, body| event == "pull_request" && body["action"] == "closed").await;
     assert_eq!(closed["pull_request"]["merged"], true);
     assert_eq!(closed["pull_request"]["head"]["label"], "bob:greeting");
+    // The squash commit names #1; the timeline shows the merge, so no reference repeats it.
+    assert!(!alice.get("/alice/demo/pull/1").await.contains("referenced this in commit"));
 
     // Bob may delete his merged branch; a reader may not (alice is the site administrator).
     bob.get("/alice/demo/pull/1").await.expect_contains(&["Delete bob:greeting"]);

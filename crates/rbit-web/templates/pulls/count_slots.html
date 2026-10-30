@@ -2,4 +2,4 @@
     renders them in place; the counts fragment renders the same markup out of band. Badges
     are wide enough for three digits, so filling them in moves nothing. -#}
 {% macro phrase(id, text, oob) %}<span id="{{ id }}"{% if oob %} hx-swap-oob="true"{% endif %}>{{ text }}</span>{% endmacro %}
-{% macro badge(id, text, oob) %}<span id="{{ id }}" class="badge min-w-10 justify-center tabular-nums"{% if oob %} hx-swap-oob="true"{% endif %}>{{ text }}</span>{% endmacro %}
+{% macro badge(id, text, oob) %}<span id="{{ id }}" class="counter min-w-8"{% if oob %} hx-swap-oob="true"{% endif %}>{{ text }}</span>{% endmacro %}

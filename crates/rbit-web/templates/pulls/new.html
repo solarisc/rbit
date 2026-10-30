@@ -3,45 +3,37 @@
 {% block nav_context %}{% include "repo/nav_context.html" %}{% endblock %}
 {% block subnav %}{% include "repo/subnav.html" %}{% endblock %}
 {% block content %}
-<div class="mb-6">
-  <h1 class="text-base font-semibold tracking-tight">Open a pull request</h1>
+<div class="mb-4">
+  <h1 class="text-xl font-semibold tracking-tight">Open a pull request</h1>
   <p class="mt-1 text-[13px] text-ink-muted">Propose the changes of a branch, from this repository or a fork, for the base branch.</p>
 </div>
 {% include "pulls/picker.html" %}
 
 {% if let Some(problem) = problem %}
-<p class="mt-4 rounded-(--radius-ui) border border-line bg-subtle px-4 py-2.5 text-[13px] text-ink-muted">{{ problem }}</p>
+<p class="notice mt-4">{% call ui::icon("alert", "mt-0.5 size-4 shrink-0") %}{% endcall %}<span>{{ problem }}</span></p>
 {% else if !signed_in %}
-<p class="mt-4 text-[13px] text-ink-muted"><a href="{{ sign_in_url }}" class="font-medium text-ink underline underline-offset-4">Sign in</a> to open a pull request.</p>
+<p class="box mt-4 p-4 text-[13px] text-ink-muted"><a href="{{ sign_in_url }}" class="font-medium text-ink underline underline-offset-4">Sign in</a> to open a pull request.</p>
 {% else if can_create %}
-<form method="post" action="{{ action_url }}" class="box mt-4 p-3 sm:p-4">
-  <input type="hidden" name="base" value="{{ base }}">
-  <input type="hidden" name="head" value="{{ head }}">
-  <label class="label" for="pull-title">Title</label>
-  <input class="input mt-1.5" id="pull-title" name="title" value="{{ title }}" maxlength="256" required>
-  <label class="label mt-3" for="pull-body">Description</label>
-  <textarea class="input mt-1.5 h-40 resize-y py-2 text-[13px]" id="pull-body" name="body" data-markdown-editor rows="8" maxlength="65536" placeholder="Markdown is supported">{{ body }}</textarea>
-  <div class="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
-    <label class="flex min-h-11 flex-1 items-center gap-2 text-[13px] sm:min-h-0"><input type="checkbox" name="draft" value="true">Open as a draft</label>
-    <button type="submit" class="btn btn-primary h-11 sm:h-8">{% call ui::icon("git-pull-request", "size-3.5") %}{% endcall %}Create pull request</button>
-  </div>
-</form>
+<p class="mt-4 flex items-center gap-2 text-[13px] font-medium">{% call ui::icon("check", "size-4 text-success") %}{% endcall %}<span class="tabular-nums">{{ commits.len() }}</span> {% if commits.len() == 1 %}commit{% else %}commits{% endif %} to propose · <span class="font-mono text-xs text-success">+{{ additions }}</span> <span class="font-mono text-xs text-danger">−{{ deletions }}</span></p>
+<div class="box mt-3 p-4">{% let form = self.form() %}{% include "pulls/create_form.html" %}</div>
 {% endif %}
 
 {% if !commits.is_empty() %}
-<h2 class="mb-2 mt-6 text-xs font-medium text-ink-muted">Commits</h2>
-<ol class="box">
-  {% for commit in commits %}
-  <li class="flex items-center gap-3 border-b border-line px-4 py-3 last:border-b-0">
-    {% call ui::avatar(commit.avatar, "size-6 text-[9px]") %}{% endcall %}
-    <div class="min-w-0 flex-1">
-      <p class="truncate text-[13px] font-medium" title="{{ commit.summary }}">{{ commit.summary }}</p>
-      <p class="mt-0.5 truncate text-xs text-ink-muted">{{ commit.author }} · <time datetime="{{ commit.when_iso }}">{{ commit.when }}</time></p>
-    </div>
-    <span class="badge shrink-0 font-mono">{{ commit.short_id }}</span>
-  </li>
-  {% endfor %}
-</ol>
+<section class="mt-6" aria-labelledby="new-pull-commits-title">
+  <h2 id="new-pull-commits-title" class="mb-2 flex items-center gap-2 text-[13px] font-semibold">{% call ui::icon("commit", "size-4 text-ink-muted") %}{% endcall %}Commits</h2>
+  <ol class="box">
+    {% for commit in commits %}
+    <li class="flex items-center gap-3 border-b border-line px-4 py-2.5 last:border-b-0">
+      {% call ui::avatar(commit.avatar, "size-6 text-[9px]") %}{% endcall %}
+      <div class="min-w-0 flex-1">
+        <a href="{{ commit.url }}" class="block truncate text-[13px] font-medium hover:underline hover:underline-offset-4" title="{{ commit.summary }}">{{ commit.summary }}</a>
+        <p class="mt-0.5 truncate text-xs text-ink-muted">{{ commit.author }} · <time datetime="{{ commit.when_iso }}">{{ commit.when }}</time></p>
+      </div>
+      <a href="{{ commit.url }}" class="btn h-8 shrink-0 px-2 font-mono text-xs sm:h-7">{{ commit.short_id }}</a>
+    </li>
+    {% endfor %}
+  </ol>
+</section>
 {% endif %}
 {% if !files.is_empty() %}{% include "repo/file_diffs.html" %}{% endif %}
 {% endblock %}

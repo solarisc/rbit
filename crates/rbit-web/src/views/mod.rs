@@ -24,6 +24,7 @@ pub mod edits;
 pub mod errors;
 // Milestone 3: external sign-in (O).
 pub mod external_auth;
+pub mod find;
 pub mod forks;
 pub mod home;
 // Milestone 3: importing and push mirrors (M).

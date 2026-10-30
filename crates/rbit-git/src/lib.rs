@@ -24,6 +24,7 @@ pub mod diff;
 // Milestone 3: editing files in the browser (E).
 pub mod edit;
 pub mod error;
+pub mod finder;
 pub mod fork;
 pub mod languages;
 pub mod last_commit;
@@ -45,6 +46,7 @@ pub mod storage;
 
 pub use changes::DiffLimits;
 pub use error::GitError;
+pub use finder::Divergence;
 pub use languages::{LanguageShare, LanguageStats};
 pub use last_commit::{LastCommitLimits, LastCommits};
 pub use lease::RepositoryLease;

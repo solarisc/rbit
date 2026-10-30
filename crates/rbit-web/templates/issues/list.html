@@ -10,7 +10,6 @@
       {% call ui::icon("search", "pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-ink-faint") %}{% endcall %}
       <input id="issue-query" class="input pl-8 font-mono text-xs" type="search" name="q" value="{{ query }}" maxlength="1000" placeholder="Search titles and descriptions…" aria-describedby="search-help" autocomplete="off" autocapitalize="none" spellcheck="false">
     </span>
-    <button type="submit" class="btn ml-2">Search</button>
   </form>
   <div class="flex shrink-0 gap-2">
     <a href="{{ labels_url }}" class="btn flex-1 sm:flex-none">{% call ui::icon("tag", "size-3.5") %}{% endcall %}Labels</a>

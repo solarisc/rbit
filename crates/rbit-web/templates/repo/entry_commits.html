@@ -8,3 +8,6 @@
   {%- endif %}
 </span>
 {% endfor %}
+{%- if let Some(label) = commit_count %}
+<span id="commit-count" hx-swap-oob="true">{{ label }}</span>
+{%- endif %}

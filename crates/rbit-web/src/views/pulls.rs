@@ -214,6 +214,10 @@ pub struct PullHeaderView {
     /// Where missing counts come from ([`PullCountsFragment`]); `None` when all are known.
     pub counts_url: Option<String>,
     pub is_draft: bool,
+    /// The viewer may move the pull request to another base branch (conversation tab).
+    pub can_change_base: bool,
+    /// "Review changes": the review form on the Files changed tab, when the viewer may review.
+    pub review_url: Option<String>,
 }
 
 impl PullHeaderView {
@@ -245,6 +249,8 @@ impl PullHeaderView {
             counts,
             counts_url,
             is_draft: ctx.pull.is_draft,
+            can_change_base: false,
+            review_url: None,
         }
     }
 
@@ -334,6 +340,20 @@ pub struct NewPullPage {
     pub additions: usize,
     pub deletions: usize,
     pub truncated: bool,
+}
+
+impl NewPullPage {
+    /// The form, open from the start: arriving here means opening a pull request.
+    pub fn form(&self) -> crate::views::compare::PullForm {
+        crate::views::compare::PullForm {
+            action_url: self.action_url.clone(),
+            base: self.base.clone(),
+            head: self.head.clone(),
+            title: self.title.clone(),
+            body: self.body.clone(),
+            expanded: true,
+        }
+    }
 }
 
 /// `/{owner}/{repo}/pulls/new?base=…&head=…`, query-encoded.
@@ -463,6 +483,8 @@ mod tests {
             counts: PullCountsView::known(1, 1),
             counts_url: None,
             is_draft: true,
+            can_change_base: false,
+            review_url: None,
         }
     }
 
@@ -500,10 +522,29 @@ mod tests {
             hints: Vec::new(),
             list_url: "/alice/demo/pulls".into(),
             menus: Vec::new(),
+            labels_url: "/alice/demo/labels".into(),
+            milestones_url: "/alice/demo/milestones".into(),
+            is_filtered: false,
+            recent_pushes: vec![crate::views::repo::RecentPush {
+                branch: "feature".into(),
+                branch_url: "/alice/demo/tree/refs/heads/feature".into(),
+                when: "5 minutes ago".into(),
+                when_iso: String::new(),
+                new_pull_url: "/alice/demo/pulls/new?base=main&head=feature".into(),
+            }],
         }
         .render()
         .unwrap();
-        for needle in ["Fix &#60;the&#62; crash", "fill=\"#d73a4a\"", "4</span> Closed", "Approved", ">Draft<", "opened"] {
+        for needle in [
+            "Fix &#60;the&#62; crash",
+            "fill=\"#d73a4a\"",
+            "4</span> Closed",
+            "Approved",
+            ">Draft<",
+            "opened",
+            "had recent pushes",
+            "Compare &amp; pull request",
+        ] {
             assert!(html.contains(needle), "{needle} missing");
         }
         assert!(!html.contains("style="), "no inline styles (strict CSP)");

@@ -1,0 +1,18 @@
+{#- The form that opens a pull request; expects `form: PullForm` (views::compare). -#}
+{% import "macros.html" as ui %}
+<form method="post" action="{{ form.action_url }}" class="space-y-4">
+  <input type="hidden" name="base" value="{{ form.base }}">
+  <input type="hidden" name="head" value="{{ form.head }}">
+  <div>
+    <label class="label" for="pull-title">Add a title</label>
+    <input class="input" id="pull-title" name="title" value="{{ form.title }}" maxlength="256" required {% if form.expanded %}autofocus{% endif %}>
+  </div>
+  <div>
+    <label class="label" for="pull-body">Add a description</label>
+    <textarea class="input h-40 resize-y py-2 text-[13px]" id="pull-body" name="body" data-markdown-editor rows="8" maxlength="65536" placeholder="Describe the change. Markdown is supported; “Closes #12” closes that issue when this merges.">{{ form.body }}</textarea>
+  </div>
+  <div class="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+    <label class="flex min-h-11 items-center gap-2 text-[13px] sm:mr-auto sm:min-h-0"><input type="checkbox" name="draft" value="true">Create as a draft</label>
+    <button type="submit" class="btn btn-primary h-11 sm:h-9">{% call ui::icon("git-pull-request", "size-4") %}{% endcall %}Create pull request</button>
+  </div>
+</form>

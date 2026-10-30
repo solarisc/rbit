@@ -17,6 +17,8 @@ import "./filter.js";
 import "./diff.js";
 import "./compare.js";
 import "./repo.js";
+// "Go to file" on the code page.
+import "./find.js";
 import "./repo-documents.js";
 import "./sticky-header.js";
 import "./contributions.js";
@@ -70,7 +72,12 @@ document.addEventListener("click", (event) => {
 
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
-  for (const menu of document.querySelectorAll("details[data-menu][open]")) menu.removeAttribute("open");
+  for (const menu of document.querySelectorAll("details[data-menu][open]")) {
+    // Focus inside a menu that closes goes back to its button, not into hidden content.
+    const focused = menu.contains(document.activeElement) && document.activeElement !== menu.querySelector("summary");
+    menu.removeAttribute("open");
+    if (focused) menu.querySelector("summary")?.focus();
+  }
 });
 
 // Close menus after htmx navigations so a boosted link inside a menu doesn't leave it open.
@@ -87,6 +94,14 @@ document.addEventListener("toggle", (event) => {
     window.htmx?.trigger(picker, "rbit:open");
   }
 }, true);
+
+// Once an open picker's options arrive (or its tab changes), its filter takes the focus,
+// so typing narrows the list straight away.
+document.addEventListener("htmx:afterSettle", () => {
+  const picker = document.querySelector("details[data-ref-picker][open]");
+  const filter = picker?.querySelector("[data-ref-filter]");
+  if (filter && document.activeElement !== filter) filter.focus({ preventScroll: true });
+});
 
 // Installation metadata and offline support can wait until the page finishes loading.
 addEventListener("load", () => {

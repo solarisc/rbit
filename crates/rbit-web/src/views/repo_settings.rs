@@ -321,14 +321,12 @@ mod tests {
         header.pulls_url = "/alice/proj/pulls".to_owned();
         let render = |header: RepoHeader| StargazersPage { page: page(), header, stargazers: Vec::new() }.render().unwrap();
         let html = render(header.clone());
-        let (code, issues, pulls) = (html.find(">Code<").unwrap(), html.find(">Issues").unwrap(), html.find(">Pull requests").unwrap());
+        let (code, issues, pulls) = (html.find("Code</a>").unwrap(), html.find("Issues<").unwrap(), html.find("Pull requests<").unwrap());
         assert!(code < issues && issues < pulls, "Code, Issues, Pull requests");
         assert!(html.contains(r#"href="/alice/proj/issues""#) && html.contains(r#"href="/alice/proj/pulls""#));
-        assert!(!html.contains(r#"<span class="badge tabular-nums">"#), "no count while there is nothing open");
+        assert!(!html.contains(r#"<span class="counter">"#), "no count while there is nothing open");
         let html = render(RepoHeader { open_issues: 3, open_pulls: 1, active_tab: "issues", ..header });
-        assert!(
-            html.contains(r#"<span class="badge tabular-nums">3</span>"#) && html.contains(r#"<span class="badge tabular-nums">1</span>"#)
-        );
+        assert!(html.contains(r#"<span class="counter">3</span>"#) && html.contains(r#"<span class="counter">1</span>"#));
         assert!(html.contains(r#"href="/alice/proj/issues" aria-current="page""#));
     }
 

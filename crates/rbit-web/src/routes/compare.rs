@@ -15,9 +15,12 @@ use axum::{
     response::{IntoResponse, Redirect, Response},
     routing::get,
 };
-use rbit_core::pull::HeadSpec;
+use rbit_core::{IssueKind, pull::HeadSpec};
 use rbit_git::{DiffLimits, RefKind};
-use rbit_services::{RepoContext, ServiceError};
+use rbit_services::{
+    RepoContext, ServiceError,
+    pulls::{PullFilter, PullStateFilter},
+};
 use serde::Deserialize;
 
 use super::repo::RepoPage;
@@ -25,9 +28,9 @@ use crate::{
     AppState,
     error::{WebError, WebResult},
     extract::Viewer,
-    urls::RepoUrls,
+    urls::{RepoUrls, encode_path, issue_url},
     views::{
-        compare::{ComparePage, ComparePicker, CompareSummary},
+        compare::{ComparePage, ComparePicker, CompareSummary, PullForm, PullOffer},
         layout::Page,
         pulls::new_pull_url,
     },
@@ -84,6 +87,16 @@ pub struct PickerQuery {
     /// `owner/name` of the head repository.
     #[serde(default)]
     head_repo: String,
+    /// Open the pull request form on the comparison (from the new pull request page).
+    #[serde(default)]
+    expand: bool,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+pub struct CompareQuery {
+    /// Show the pull request form open, as `/pulls/new` does.
+    expand: bool,
 }
 
 /// The head spec naming `branch` of `head` as seen from `base`: `branch` in the same
@@ -123,6 +136,7 @@ fn empty_page(loaded: &RepoPage, state: &AppState, page: Page, picker: ComparePi
         header: loaded.header(state, "code"),
         picker,
         summary: None,
+        offer: None,
         files: Vec::new(),
         additions: 0,
         deletions: 0,
@@ -154,7 +168,8 @@ async fn picker(
         };
         let spec = head_spec(&base_ctx, &head_repo, head);
         let urls = RepoUrls::new(base_ctx.repo.owner.name.as_str(), base_ctx.repo.repo.name.as_str());
-        return Ok(Redirect::to(&urls.compare(base, &spec)).into_response());
+        let suffix = if query.expand { "?expand=true" } else { "" };
+        return Ok(Redirect::to(&format!("{}{suffix}", urls.compare(base, &spec))).into_response());
     }
     // Suggest the most natural comparison: the first other branch against the default.
     let base = if base.is_empty() { loaded.default_branch().to_owned() } else { base.to_owned() };
@@ -176,6 +191,7 @@ async fn compare(
     viewer: Viewer,
     page: Page,
     Path((owner, repo, spec)): Path<(String, String, String)>,
+    Query(query): Query<CompareQuery>,
 ) -> WebResult<ComparePage> {
     let loaded = RepoPage::load(&state, &viewer, &owner, &repo).await?;
     let (base, head) = match spec.split_once("...") {
@@ -203,14 +219,45 @@ async fn compare(
     let same = head_ctx.repo.repo.id == loaded.ctx.repo.repo.id;
 
     let head_full_name = head_ctx.repo.full_name();
-    let picker = picker_with(&loaded, &network.unwrap_or_default(), &base, &head_spec_parsed.branch, &head_full_name);
+    let mut picker = picker_with(&loaded, &network.unwrap_or_default(), &base, &head_spec_parsed.branch, &head_full_name);
+    picker.expand = query.expand;
     let mut view = empty_page(&loaded, &state, page, picker);
     view.page.title = Some(format!("Compare {base}...{head} · {}", loaded.ctx.repo.full_name()));
     let head_urls = RepoUrls::new(head_ctx.repo.owner.name.as_str(), head_ctx.repo.repo.name.as_str());
-    let mut summary = CompareSummary::new(&comparison, &base, &head, &loaded.urls, &head_urls, same);
-    if comparison.ahead > 0 && comparison.merge_base.is_some() {
-        summary.create_url = Some(new_pull_url(loaded.ctx.repo.owner.name.as_str(), loaded.ctx.repo.repo.name.as_str(), &base, &head));
+    view.summary = Some(CompareSummary::new(&comparison, &base, &head, &loaded.urls, &head_urls, same));
+    if comparison.ahead > 0 && comparison.merge_base.is_some() && !loaded.ctx.repo.repo.is_archived() {
+        let open = PullFilter {
+            state: PullStateFilter::Open,
+            head_repo: Some(head_ctx.repo.repo.id),
+            head_branch: Some(head_spec_parsed.branch.clone()),
+            base_branch: Some(base.trim_start_matches("refs/heads/").to_owned()),
+            ..PullFilter::default()
+        };
+        let existing = pulls.list_page(&loaded.ctx, &open, 1, 0).await?.items.into_iter().next();
+        let (owner, name) = (loaded.ctx.repo.owner.name.as_str(), loaded.ctx.repo.repo.name.as_str());
+        view.offer = Some(if let Some(item) = existing {
+            PullOffer::Existing(format!("#{}", item.issue.number.get()), issue_url(owner, name, IssueKind::Pull, item.issue.number))
+        } else if viewer.user().is_some() {
+            PullOffer::Create(PullForm {
+                action_url: format!("{}/pulls", loaded.urls.home()),
+                base: base.clone(),
+                head: head.clone(),
+                title: default_title(&comparison, &head_spec_parsed.branch),
+                body: String::new(),
+                expanded: query.expand,
+            })
+        } else {
+            PullOffer::SignIn(format!("/login?next={}", encode_path(&new_pull_url(owner, name, &base, &head)).replace('&', "%26")))
+        });
     }
-    view.summary = Some(summary);
     tokio::task::spawn_blocking(move || view.with_comparison(&comparison, &head_urls)).await.map_err(WebError::internal)
+}
+
+/// A new pull request's title: its only commit's summary, or else the branch name, as on
+/// GitHub.
+pub(super) fn default_title(comparison: &rbit_git::compare::Comparison, branch: &str) -> String {
+    match comparison.commits.as_slice() {
+        [only] if comparison.ahead == 1 => only.summary.clone(),
+        _ => branch.to_owned(),
+    }
 }

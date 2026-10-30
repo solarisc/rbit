@@ -29,7 +29,7 @@ use crate::{
         ref_picker::{RefPickerLinks, RefPickerQuery, RefTarget},
         releases::LatestRelease,
         repo::{
-            BlobContent, BlobPage, CommitDay, CommitView, CommitsPage, EmptyRepoPage, EntryRow, RefSwitcher, RepoHeader,
+            BlobContent, BlobPage, CommitDay, CommitView, CommitsPage, EmptyRepoPage, EntryRow, RecentPush, RefSwitcher, RepoHeader,
             RepositoryDocumentsFragment, TreePage, breadcrumbs,
         },
         statuses::{CHECKS_ANCHOR, StatusMark},
@@ -367,8 +367,9 @@ async fn render_tree(
     let listing_query = query.listing();
     // Pin the listing and language statistics to the same revision snapshot.
     let listing = reader.tree(commit_id.clone(), path.clone());
-    let (listing, languages, latest_release) =
-        tokio::join!(listing, language_bar(state, &loaded, &commit_id), latest_release(state, &loaded));
+    let pushes = async { if path.is_empty() { recent_pushes(state, &loaded).await } else { Vec::new() } };
+    let (listing, languages, latest_release, recent_pushes) =
+        tokio::join!(listing, language_bar(state, &loaded, &commit_id), latest_release(state, &loaded), pushes);
     let collaborator = collaborator_access(viewer, &loaded);
     let view = listing.map_err(ServiceError::from)?;
     let (documents, readme) = repository_documents::load(
@@ -419,7 +420,7 @@ async fn render_tree(
         latest: CommitView::new(&view.commit, urls),
         entries,
         // Pinned to the resolved commit so the cells always describe the rows on screen.
-        entry_commits_url: cells.url(cells.page),
+        entry_commits_url: if path.is_empty() { format!("{}&count=true", cells.url(cells.page)) } else { cells.url(cells.page) },
         pagination,
         readme,
         documents,
@@ -431,7 +432,59 @@ async fn render_tree(
         collaborator,
         new_file_url: editable.then(|| urls.edit("new", &revision, &path)),
         upload_url: editable.then(|| urls.edit("upload", &revision, &path)),
+        find_url: urls.find(&revision),
+        new_release_url: (loaded.ctx.can_write_content() && !loaded.ctx.repo.repo.is_archived())
+            .then(|| format!("{}/new", urls.releases())),
+        recent_pushes,
     })
+}
+
+/// How recent a branch's last commit must be for the "Compare & pull request" banner.
+const RECENT_PUSH_SECONDS: i64 = 60 * 60;
+/// Branches the banner names at most.
+const RECENT_PUSHES: usize = 2;
+
+/// Branches committed to within the last hour that have no open pull request, for the
+/// "had recent pushes · Compare & pull request" banner GitHub shows above the files and
+/// pull requests. rbit keeps no push log, so the tip's commit time stands in for the push.
+/// Only writers see it (they are the ones who open pull requests from branches here), and
+/// failures only leave it out.
+pub(super) async fn recent_pushes(state: &AppState, loaded: &RepoPage) -> Vec<RecentPush> {
+    if !loaded.ctx.can_write_content() || loaded.ctx.repo.repo.is_archived() || loaded.mirror.is_some() {
+        return Vec::new();
+    }
+    let default = loaded.default_branch().to_owned();
+    let Ok((recent, _)) = loaded.ctx.reader.ref_details_page(RefKind::Branch, String::new(), default.clone(), 1, RECENT_PUSHES + 1).await
+    else {
+        return Vec::new();
+    };
+    let now = rbit_core::Timestamp::now().seconds();
+    let fresh: Vec<_> = recent
+        .into_iter()
+        .filter(|detail| detail.name != default && now - detail.commit.authored_at.seconds() < RECENT_PUSH_SECONDS)
+        .collect();
+    if fresh.is_empty() {
+        return Vec::new();
+    }
+    let filter = rbit_services::pulls::PullFilter {
+        state: rbit_services::pulls::PullStateFilter::Open,
+        head_repo: Some(loaded.ctx.repo.repo.id),
+        ..rbit_services::pulls::PullFilter::default()
+    };
+    let Ok(open) = state.services.pulls.list_page(&loaded.ctx, &filter, 100, 0).await else { return Vec::new() };
+    let (owner, name) = (loaded.ctx.repo.owner.name.as_str(), loaded.ctx.repo.repo.name.as_str());
+    fresh
+        .into_iter()
+        .filter(|detail| !open.items.iter().any(|item| item.pull.head_branch == detail.name))
+        .take(RECENT_PUSHES)
+        .map(|detail| RecentPush {
+            branch_url: loaded.urls.tree(&format!("refs/heads/{}", detail.name), ""),
+            new_pull_url: crate::views::pulls::new_pull_url(owner, name, &default, &detail.name),
+            when: detail.commit.authored_at.relative(),
+            when_iso: detail.commit.authored_at.iso8601(),
+            branch: detail.name,
+        })
+        .collect()
 }
 
 /// The viewer's collaborator grant, when they have one and do not administer the
@@ -476,18 +529,29 @@ fn entry_commits_url(urls: &RepoUrls, commit_id: &str, path: &str) -> String {
     url
 }
 
+/// The cells' query: the listing's search and page, and whether to count the history too
+/// (the root folder's header shows it).
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+pub struct EntryCommitsQuery {
+    q: String,
+    page: usize,
+    count: bool,
+}
+
 /// `GET /{owner}/{repo}/tree-commits/{revision}/{path…}`: the last commit of every entry
 /// in a directory, as out-of-band swaps into the rows of the tree page.
 pub async fn entry_commits(
     State(state): State<AppState>,
     viewer: Viewer,
     Path((owner, repo, rest)): Path<(String, String, String)>,
-    Query(query): Query<ListQuery>,
+    Query(query): Query<EntryCommitsQuery>,
 ) -> WebResult<Response> {
     let ctx = open_pinned(&state, &viewer, &owner, &repo).await?;
     let (revision, path) = ctx.reader.split_revision_path(rest).await.map_err(ServiceError::from)?;
     let view = ctx.reader.tree(revision.clone(), path.clone()).await.map_err(ServiceError::from)?;
-    let query = query.normalized();
+    let count = query.count;
+    let query = ListQuery { q: query.q, page: query.page }.normalized();
     let filtered = matching_entries(&view.entries, &query.q);
     let pagination = Pagination::new(filtered.len(), &query, String::new(), vec![]);
     let selected = &filtered[pagination.start..pagination.end];
@@ -507,7 +571,14 @@ pub async fn entry_commits(
     // The tree page links here by commit id, which pins the answer. Only when the revision
     // resolved to the commit it spells: a branch may be named with 40 hex digits.
     let pinned = view.commit.id == revision && ctx.repo.repo.visibility.is_public() && !result.timed_out && commits.len() == entries.len();
-    Ok(crate::middleware::cache_pinned(EntryCommitsFragment { cells }.into_response(), pinned))
+    // The root folder's header shows how long the history is.
+    let commit_count = if count {
+        let (count, capped) = super::finder::commit_count(&ctx.reader, &view.commit.id).await?;
+        Some(crate::views::insights::commit_count_label(count, capped))
+    } else {
+        None
+    };
+    Ok(crate::middleware::cache_pinned(EntryCommitsFragment { cells, commit_count }.into_response(), pinned))
 }
 
 fn matching_entries<'a>(entries: &'a [rbit_git::TreeEntry], query: &str) -> Vec<(usize, &'a rbit_git::TreeEntry)> {

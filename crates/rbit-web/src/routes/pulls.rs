@@ -257,7 +257,8 @@ async fn list(
         issues.milestones(ctx, None),
         issues.assignable(ctx, ""),
     )?;
-    let items = state.services.pulls.search(ctx, &results).await?;
+    let (items, recent_pushes) = tokio::join!(state.services.pulls.search(ctx, &results), super::repo::recent_pushes(&state, &loaded));
+    let items = items?;
     let rows = items
         .iter()
         .map(|item| {
@@ -302,6 +303,10 @@ async fn list(
         hints: results.hints,
         menus: filter_menus(&clean, &base, &MenuChoices { labels, milestones, people }, viewer.user()),
         list_url: base,
+        labels_url: format!("{}/labels", loaded.urls.home()),
+        milestones_url: format!("{}/milestones", loaded.urls.home()),
+        is_filtered: params.q.as_deref().is_some_and(|q| !q.trim().is_empty()) || !params.state.is_empty() || !params.author.is_empty(),
+        recent_pushes,
     })
 }
 
@@ -369,6 +374,7 @@ async fn new_page(
     let head_full_name = head_ctx.repo.full_name();
     let mut picker = super::compare::pickers(&state, &viewer, &loaded, &base, &spec.branch, &head_full_name).await;
     picker.branches_only = true;
+    picker.expand = true;
     let mut view = NewPullPage {
         page: page.titled(format!("Open a pull request · {}", loaded.ctx.repo.full_name())),
         header: loaded.header(&state, "pulls"),
@@ -381,7 +387,11 @@ async fn new_page(
         problem: None,
         can_create: false,
         signed_in: viewer.user().is_some(),
-        sign_in_url: format!("/login?next={}", crate::views::pulls::new_pull_url(&owner_name(&loaded), &repo_name(&loaded), &base, &head)),
+        sign_in_url: format!(
+            "/login?next={}",
+            crate::urls::encode_path(&crate::views::pulls::new_pull_url(&owner_name(&loaded), &repo_name(&loaded), &base, &head))
+                .replace('&', "%26")
+        ),
         commits: Vec::new(),
         files: Vec::new(),
         additions: 0,
@@ -553,6 +563,9 @@ async fn conversation(
     let can_convert_to_draft = can_change_base && !ctx.pull.is_draft;
     let sidebar = sidebar?;
     let entries = interleave(thread.items.clone(), reviews);
+    let mut pull_header = pull_header;
+    pull_header.can_change_base = can_change_base;
+    pull_header.review_url = review_form.as_ref().map(|_| format!("{}#submit-review", urls.files));
     let view = PullPage {
         page: page.titled(title(&ctx, "")),
         header: loaded.header(&state, "pulls"),
@@ -643,10 +656,13 @@ async fn files(
         }
         None => (Vec::new(), 0, 0, false),
     };
+    let review_form = review_form(&ctx, &data, user);
+    let mut pull = PullHeaderView::new(&ctx, counts, None, "files");
+    pull.review_url = review_form.as_ref().map(|_| "#submit-review".to_owned());
     let view = PullFilesPage {
         page: page.titled(title(&ctx, " · Files changed")),
         header: loaded.header(&state, "pulls"),
-        pull: PullHeaderView::new(&ctx, counts, None, "files"),
+        pull,
         files,
         additions,
         deletions,
@@ -654,7 +670,7 @@ async fn files(
         can_comment,
         signed_in: user.is_some(),
         sign_in_url: format!("/login?next={}", urls.files),
-        review_form: review_form(&ctx, &data, user),
+        review_form,
         outdated_count: comments
             .iter()
             .flat_map(|comment| std::iter::once(comment).chain(&comment.replies))

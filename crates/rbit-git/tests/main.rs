@@ -6,6 +6,7 @@ mod blame;
 mod changes;
 mod compare;
 mod edit;
+mod finder;
 mod insights;
 mod merge;
 mod overlay;

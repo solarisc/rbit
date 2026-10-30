@@ -1,0 +1,20 @@
+{% import "macros.html" as ui %}
+{#- The "Go to file" dropdown (views::find::FindResults); find.js shows it under the box and
+    moves through `[data-find-option]` rows with the arrow keys. -#}
+<div data-find-results>
+  {% if query.is_empty() %}
+  <p class="px-2.5 py-2 text-xs text-ink-faint">Type to search the files of this branch.</p>
+  {% else if rows.is_empty() %}
+  <p class="px-2.5 py-2 text-[13px] text-ink-muted">No files match “{{ query }}”.</p>
+  {% else %}
+  <ul role="listbox" aria-label="Matching files">
+    {% for row in rows %}
+    <li><a href="{{ row.url }}" class="menu-item" role="option" data-find-option title="{{ row.path }}">{% call ui::icon("file", "menu-icon") %}{% endcall %}<span class="min-w-0 truncate"><span class="text-ink-muted">{{ row.folder }}</span><span class="font-medium">{{ row.name }}</span></span></a></li>
+    {% endfor %}
+  </ul>
+  {% if total > rows.len() %}
+  <div class="menu-divider"></div>
+  <a href="{{ page_url }}" class="menu-item text-ink-muted" data-find-option>{% call ui::icon("search", "menu-icon") %}{% endcall %}See all {{ total }} files</a>
+  {% endif %}
+  {% endif %}
+</div>

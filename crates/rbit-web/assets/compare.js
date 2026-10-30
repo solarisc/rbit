@@ -56,8 +56,13 @@ function schedule(input, delay, all = false) {
 }
 function choose(input, button) {
   input.value = button.dataset.compareValue;
-  input.focus();
   cancel(input);
+  // In a compare-bar menu the choice compares at once; elsewhere it fills the field.
+  if (input.closest('[data-compare-menu]')) {
+    compareNow(input.form);
+    return;
+  }
+  input.focus();
   close(input);
 }
 document.addEventListener('input', event => {
@@ -100,4 +105,21 @@ document.addEventListener('keydown', event => {
 });
 document.addEventListener('htmx:beforeSwap', () => {
   for (const input of document.querySelectorAll('[data-compare-ref]')) cancel(input);
+});
+
+// In the compare bar each side is a dropdown: opening one focuses its search (which
+// lists every ref), and choosing a ref or a repository compares straight away.
+function compareNow(form) {
+  if (typeof form.requestSubmit === 'function') form.requestSubmit();
+  else form.submit();
+}
+document.addEventListener('toggle', event => {
+  const menu = event.target;
+  if (!(menu instanceof HTMLDetailsElement) || !menu.open || !menu.matches('[data-compare-menu]')) return;
+  const input = menu.querySelector('[data-compare-ref]');
+  input?.focus();
+  input?.select();
+}, true);
+document.addEventListener('change', event => {
+  if (event.target.matches?.('[data-compare-repo]')) compareNow(event.target.form);
 });

@@ -1,0 +1,36 @@
+{#- Under the compare bar: how the two sides differ and what can be done about it; expects
+    `summary: CompareSummary`, `offer: Option<PullOffer>`. -#}
+{% import "macros.html" as ui %}
+<div class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px]">
+  {% if summary.merge_base.is_none() %}
+  <p class="flex items-center gap-2 font-medium text-danger">{% call ui::icon("x", "size-4") %}{% endcall %}Entirely different histories: there is nothing to compare.</p>
+  {% else if summary.ahead == 0 %}
+  <p class="flex items-center gap-2 font-medium">{% call ui::icon("check", "size-4 text-success") %}{% endcall %}<span class="font-mono text-xs">{{ summary.base }}</span> is up to date with <span class="font-mono text-xs">{{ summary.head }}</span>.</p>
+  {% else %}
+  <p class="flex flex-wrap items-center gap-x-2 gap-y-1"><span class="font-medium"><span class="tabular-nums">{{ summary.ahead_label }}</span> {% if summary.ahead == 1 %}commit{% else %}commits{% endif %} ahead</span><span class="text-ink-muted">· <span class="tabular-nums">{{ summary.behind_label }}</span> behind <span class="font-mono text-xs">{{ summary.base }}</span></span></p>
+  {% endif %}
+  {% if let Some(merge_base) = summary.merge_base %}
+  <span class="text-xs text-ink-muted">merge base <a class="font-mono text-ink hover:underline hover:underline-offset-4" href="{{ merge_base.url }}">{{ merge_base.short_id }}</a></span>
+  {% endif %}
+  {% if let Some(url) = summary.swap_url %}<a href="{{ url }}" class="btn btn-ghost ml-auto h-8 px-2 text-xs sm:h-7" title="Compare the other way round">{% call ui::icon("transfer", "size-3.5") %}{% endcall %}Swap</a>{% endif %}
+</div>
+
+{% if let Some(offer) = offer %}
+{% match offer %}
+{% when PullOffer::Create(form) %}
+<details class="create-pull box mt-4" {% if form.expanded %}open{% endif %}>
+  <summary class="flex cursor-pointer flex-col gap-3 p-4 sm:flex-row sm:items-center">
+    <span class="flex-1 text-[13px] text-ink-muted">Discuss and review the changes in this comparison with others.</span>
+    <span class="btn btn-primary h-11 sm:h-9">{% call ui::icon("git-pull-request", "size-4") %}{% endcall %}Create pull request</span>
+  </summary>
+  <div class="border-t border-line p-4">{% include "pulls/create_form.html" %}</div>
+</details>
+{% when PullOffer::Existing(number, url) %}
+<div class="box mt-4 flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+  <p class="flex flex-1 items-center gap-2 text-[13px]">{% call ui::icon("git-pull-request", "size-4 text-success") %}{% endcall %}An open pull request already proposes these changes: <a href="{{ url }}" class="font-semibold hover:underline hover:underline-offset-4">{{ number }}</a>.</p>
+  <a href="{{ url }}" class="btn h-11 sm:h-9">View pull request</a>
+</div>
+{% when PullOffer::SignIn(url) %}
+<p class="box mt-4 p-4 text-[13px] text-ink-muted"><a href="{{ url }}" class="font-medium text-ink underline underline-offset-4">Sign in</a> to create a pull request from these changes.</p>
+{% endmatch %}
+{% endif %}

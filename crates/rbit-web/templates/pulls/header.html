@@ -1,22 +1,44 @@
 {#- The state, the "wants to merge" line and the Conversation / Commits / Files changed tabs of a
-    pull request; expects `pull: PullHeaderView` (views::pulls). The page places the title above. -#}
+    pull request; expects `pull: PullHeaderView` (views::pulls) and `header: RepoHeader`. The page
+    places the title above. -#}
 {% import "macros.html" as ui %}
 {% import "pulls/count_slots.html" as slots %}
 <div class="mt-3 flex flex-wrap items-center gap-x-2 gap-y-2 text-[13px] text-ink-muted">
   {% let badge = pull.badge %}{% include "timeline/state_badge.html" %}
   <p class="min-w-0 flex-1 break-words leading-6">
-    {% if let Some(url) = pull.author.url %}<a href="{{ url }}" class="font-medium text-ink hover:underline hover:underline-offset-4">{{ pull.author.name }}</a>{% else %}<span class="font-medium">{{ pull.author.name }}</span>{% endif %}
+    {% if let Some(url) = pull.author.url %}<a href="{{ url }}" class="font-semibold text-ink hover:underline hover:underline-offset-4">{{ pull.author.name }}</a>{% else %}<span class="font-semibold">{{ pull.author.name }}</span>{% endif %}
     {{ pull.verb }} {% call slots::phrase(pull.slot(crate::views::pulls::CountSlot::CommitsPhrase), pull.counts.commits_phrase(), false) %}{% endcall %} into
-    <a href="{{ pull.base_url }}" class="rounded-sm bg-subtle px-1 font-mono text-xs text-ink hover:underline hover:underline-offset-4">{{ pull.base_branch }}</a>
+    <a href="{{ pull.base_url }}" class="ref-pill">{{ pull.base_branch }}</a>
     from
-    {% if let Some(url) = pull.head_url %}<a href="{{ url }}" class="rounded-sm bg-subtle px-1 font-mono text-xs text-ink hover:underline hover:underline-offset-4">{{ pull.head_label }}</a>{% else %}<span class="rounded-sm bg-subtle px-1 font-mono text-xs text-ink-faint">{{ pull.head_label }}</span>{% endif %}
+    {% if let Some(url) = pull.head_url %}<a href="{{ url }}" class="ref-pill">{{ pull.head_label }}</a>{% else %}<span class="ref-pill text-ink-faint">{{ pull.head_label }}</span>{% endif %}
   </p>
+  {% if pull.can_change_base %}
+  {#- Moving the pull request to another base: a popover beside the branches, as GitHub's title edit offers. -#}
+  <details class="relative" data-menu>
+    <summary class="btn btn-ghost h-8 cursor-pointer px-2 text-xs sm:h-7" title="Change base branch">{% call ui::icon("pencil", "size-3.5") %}{% endcall %}Change base branch</summary>
+    <form method="post" action="{{ pull.urls.page }}/base" data-compare-picker data-branches-only="true" data-repository="{{ header.owner }}/{{ header.name }}" class="menu right-0 w-[min(22rem,calc(100vw-2rem))] p-3">
+      <div class="relative" data-compare-field>
+        <label class="label" for="pull-base">Base branch</label>
+        <input id="pull-base" class="input font-mono text-xs" name="base" value="{{ pull.base_branch }}" required autocomplete="off" data-compare-ref="base" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="pull-base-options">
+        <div id="pull-base-options" class="menu inset-x-0 top-full max-h-64 overflow-y-auto" role="listbox" aria-label="Base branches" hidden></div>
+        <p class="hint" data-compare-status aria-live="polite"></p>
+      </div>
+      <p class="hint">The commits, diff and merge checks follow the new base.</p>
+      <button type="submit" class="btn btn-primary mt-3 h-11 w-full sm:h-8">Update base branch</button>
+    </form>
+  </details>
+  {% endif %}
 </div>
-<nav class="-mx-4 -mb-px mt-5 flex gap-5 border-b border-line px-4 scroll-tabs sm:mx-0 sm:px-0" aria-label="Pull request">
-  <a class="tab" href="{{ pull.urls.page }}" {% if pull.active == "conversation" %}aria-current="page"{% endif %}>{% call ui::icon("message-square", "size-3.5") %}{% endcall %}Conversation</a>
-  <a class="tab" href="{{ pull.urls.commits }}" {% if pull.active == "commits" %}aria-current="page"{% endif %}>{% call ui::icon("commit", "size-3.5") %}{% endcall %}Commits{% call slots::badge(pull.slot(crate::views::pulls::CountSlot::Commits), pull.counts.commits_badge(), false) %}{% endcall %}</a>
-  <a class="tab" href="{{ pull.urls.files }}" {% if pull.active == "files" %}aria-current="page"{% endif %}>{% call ui::icon("file-diff", "size-3.5") %}{% endcall %}Files changed{% call slots::badge(pull.slot(crate::views::pulls::CountSlot::Files), pull.counts.files_badge(), false) %}{% endcall %}</a>
-</nav>
+<div class="-mx-4 mt-5 flex items-end gap-3 border-b border-line px-4 sm:mx-0 sm:px-0">
+  <nav class="-mb-px flex min-w-0 flex-1 gap-1 scroll-tabs" aria-label="Pull request">
+    <a class="tab" href="{{ pull.urls.page }}" {% if pull.active == "conversation" %}aria-current="page"{% endif %}>{% call ui::icon("message-square", "tab-icon") %}{% endcall %}Conversation</a>
+    <a class="tab" href="{{ pull.urls.commits }}" {% if pull.active == "commits" %}aria-current="page"{% endif %}>{% call ui::icon("commit", "tab-icon") %}{% endcall %}Commits{% call slots::badge(pull.slot(crate::views::pulls::CountSlot::Commits), pull.counts.commits_badge(), false) %}{% endcall %}</a>
+    <a class="tab" href="{{ pull.urls.files }}" {% if pull.active == "files" %}aria-current="page"{% endif %}>{% call ui::icon("file-diff", "tab-icon") %}{% endcall %}Files changed{% call slots::badge(pull.slot(crate::views::pulls::CountSlot::Files), pull.counts.files_badge(), false) %}{% endcall %}</a>
+  </nav>
+  {% if let Some(url) = pull.review_url %}
+  <a href="{{ url }}" class="btn btn-primary mb-1.5 hidden h-8 shrink-0 sm:inline-flex sm:h-7" {% if pull.active == "files" %}hx-boost="false"{% endif %}>{% call ui::icon("eye", "size-3.5") %}{% endcall %}Review changes</a>
+  {% endif %}
+</div>
 {%- if let Some(url) = pull.counts_url %}
 <div hidden hx-get="{{ url }}" hx-trigger="load" hx-swap="outerHTML"></div>
 {%- endif %}

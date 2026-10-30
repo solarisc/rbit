@@ -1,5 +1,5 @@
 {% import "macros.html" as ui %}
-{#- Repository tabs, star and fork buttons and clone menu under the top bar; expects `header: RepoHeader` and `page: Page` fields. -#}
+{#- Repository tabs, star and fork buttons under the top bar; expects `header: RepoHeader` and `page: Page` fields. -#}
 {% if let Some(parent) = header.forked_from %}
 <p class="mx-auto flex max-w-[96rem] items-center gap-1.5 px-4 pt-2 text-xs text-ink-muted sm:px-6">{% call ui::icon("git-fork", "size-3 shrink-0") %}{% endcall %}<span class="truncate">forked from <a class="font-medium text-ink hover:underline hover:underline-offset-4" href="{{ parent.url }}">{{ parent.full_name }}</a></span></p>
 {% endif %}
@@ -24,20 +24,18 @@
     </p>
   </div>
 
-  <nav class="repo-tabs -mb-px flex min-w-0 gap-5 scroll-tabs" aria-label="Repository">
-    <a class="tab" data-repo-tab="code" data-preload="visible" href="{{ header.home_url }}" {% if header.active_tab == "code" %}aria-current="page"{% endif %}>Code</a>
-    <a class="tab" data-repo-tab="issues" data-preload="visible" href="{{ header.issues_url }}" {% if header.active_tab == "issues" %}aria-current="page"{% endif %}>Issues{% if header.open_issues > 0 %}<span class="badge tabular-nums">{{ header.open_issues }}</span>{% endif %}</a>
-    <a class="tab" data-repo-tab="pulls" data-preload="visible" href="{{ header.pulls_url }}" {% if header.active_tab == "pulls" %}aria-current="page"{% endif %}>Pull requests{% if header.open_pulls > 0 %}<span class="badge tabular-nums">{{ header.open_pulls }}</span>{% endif %}</a>
-    <a class="tab" data-repo-tab="commits" data-preload="visible" href="{{ header.commits_url }}" {% if header.active_tab == "commits" %}aria-current="page"{% endif %}>Commits</a>
-    <a class="tab" data-repo-tab="branches" data-preload="visible" href="{{ header.branches_url }}" {% if header.active_tab == "branches" %}aria-current="page"{% endif %}>Branches</a>
-    <a class="tab" data-repo-tab="tags" data-preload="visible" href="{{ header.tags_url }}" {% if header.active_tab == "tags" %}aria-current="page"{% endif %}>Tags</a>
-    <a class="tab" data-repo-tab="releases" data-preload="visible" href="{{ header.releases_url }}" {% if header.active_tab == "releases" %}aria-current="page"{% endif %}>Releases</a>
-    <a class="tab" data-repo-tab="activity" data-preload="visible" href="{{ header.activity_url }}" {% if header.active_tab == "activity" %}aria-current="page"{% endif %}>Activity</a>
+  {#- Commits, branches, tags and releases are pages of the Code tab, as on GitHub: the code
+      page links to each, so this row keeps to the places people switch between. -#}
+  <nav class="repo-tabs -mb-px flex min-w-0 gap-1 scroll-tabs" aria-label="Repository">
+    <a class="tab" data-repo-tab="code" data-preload="visible" href="{{ header.home_url }}" {% if header.code_tab_current() %}aria-current="page"{% endif %}>{% call ui::icon("code", "tab-icon") %}{% endcall %}Code</a>
+    <a class="tab" data-repo-tab="issues" data-preload="visible" href="{{ header.issues_url }}" {% if header.active_tab == "issues" %}aria-current="page"{% endif %}>{% call ui::icon("circle-dot", "tab-icon") %}{% endcall %}Issues{% if header.open_issues > 0 %}<span class="counter">{{ header.open_issues }}</span>{% endif %}</a>
+    <a class="tab" data-repo-tab="pulls" data-preload="visible" href="{{ header.pulls_url }}" {% if header.active_tab == "pulls" %}aria-current="page"{% endif %}>{% call ui::icon("git-pull-request", "tab-icon") %}{% endcall %}Pull requests{% if header.open_pulls > 0 %}<span class="counter">{{ header.open_pulls }}</span>{% endif %}</a>
     {% if let Some(actions_url) = header.actions_url %}
-    <a class="tab" data-repo-tab="actions" data-preload="visible" href="{{ actions_url }}" {% if header.active_tab == "actions" %}aria-current="page"{% endif %}>Actions</a>
+    <a class="tab" data-repo-tab="actions" data-preload="visible" href="{{ actions_url }}" {% if header.active_tab == "actions" %}aria-current="page"{% endif %}>{% call ui::icon("circle-play", "tab-icon") %}{% endcall %}Actions</a>
     {% endif %}
+    <a class="tab" data-repo-tab="activity" data-preload="visible" href="{{ header.activity_url }}" {% if header.active_tab == "activity" %}aria-current="page"{% endif %}>{% call ui::icon("activity", "tab-icon") %}{% endcall %}Activity</a>
     {% if header.can_admin %}
-    <a class="tab" data-repo-tab="settings" href="{{ header.settings_url }}" {% if header.active_tab == "settings" %}aria-current="page"{% endif %}>Settings</a>
+    <a class="tab" data-repo-tab="settings" href="{{ header.settings_url }}" {% if header.active_tab == "settings" %}aria-current="page"{% endif %}>{% call ui::icon("settings", "tab-icon") %}{% endcall %}Settings</a>
     {% endif %}
   </nav>
 
@@ -49,28 +47,6 @@
       <a class="btn h-8 rounded-r-none px-2.5 sm:h-7" href="{{ header.fork_url }}" title="Fork this repository">{% call ui::icon("git-fork", "size-3.5 text-ink-muted") %}{% endcall %}<span class="hidden sm:inline">Fork</span></a>
       <a class="btn -ml-px h-8 rounded-l-none px-2 tabular-nums sm:h-7" href="{{ header.forks_url }}" title="Forks" aria-label="{{ header.fork_count }} {% if header.fork_count == 1 %}fork{% else %}forks{% endif %}">{{ header.fork_count }}</a>
     </div>
-
-    <details class="relative" data-menu>
-      <summary class="btn h-8 cursor-pointer sm:h-7">
-        Clone{% call ui::icon("chevron-down", "size-3.5 text-ink-muted") %}{% endcall %}
-      </summary>
-      <div class="menu right-0 w-[min(24rem,calc(100vw-2rem))] p-3">
-        <p class="mb-2 text-xs font-medium text-ink-muted">HTTPS</p>
-        <div class="flex">
-          <input id="clone-url" class="input h-8 rounded-r-none font-mono text-xs sm:h-8" value="{{ header.clone_url }}" readonly aria-label="Clone URL">
-          <button type="button" class="btn btn-icon -ml-px h-8 rounded-l-none sm:h-8" data-copy="clone-url" aria-label="Copy clone URL" title="Copy">{% call ui::icon("copy", "size-3.5") %}{% endcall %}</button>
-        </div>
-        {% if let Some(ssh_url) = header.ssh_clone_url %}
-        <p class="mb-2 mt-3 text-xs font-medium text-ink-muted">SSH</p>
-        <div class="flex">
-          <input id="ssh-clone-url" class="input h-8 rounded-r-none font-mono text-xs sm:h-8" value="{{ ssh_url }}" readonly aria-label="SSH clone URL">
-          <button type="button" class="btn btn-icon -ml-px h-8 rounded-l-none sm:h-8" data-copy="ssh-clone-url" aria-label="Copy SSH clone URL" title="Copy">{% call ui::icon("copy", "size-3.5") %}{% endcall %}</button>
-        </div>
-        <p class="mt-2 text-xs text-ink-faint">SSH needs a key in <a class="underline hover:text-ink" href="/settings/keys">your settings</a>.</p>
-        {% endif %}
-        <a class="btn mt-3 w-full justify-center" href="{{ header.zip_url }}" hx-boost="false" download>{% call ui::icon("archive", "size-3.5") %}{% endcall %}Download ZIP</a>
-      </div>
-    </details>
   </div>
 </div>
 <!--/partial:subnav-->

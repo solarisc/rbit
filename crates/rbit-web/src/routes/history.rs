@@ -2,18 +2,24 @@
 
 use crate::views::pagination::{LIST_PAGE_SIZE, ListQuery, Pagination};
 use axum::extract::{Path, Query, State};
+use rbit_core::IssueKind;
 use rbit_git::{DiffLimits, RefKind};
-use rbit_services::ServiceError;
+use rbit_services::{
+    ServiceError,
+    pulls::{PullFilter, PullListItem, PullStateFilter},
+};
 
 use super::repo::RepoPage;
 use crate::{
     AppState,
     error::WebResult,
     extract::Viewer,
+    urls::issue_url,
     views::{
         commit::CommitPage,
         layout::Page,
-        refs::{RefRow, RefsPage},
+        pulls::new_pull_url,
+        refs::{BranchDivergenceFragment, BranchPull, DIVERGENCE_CAP, RefRow, RefsPage},
     },
 };
 
@@ -119,6 +125,8 @@ async fn refs(
             kind: "branch",
             rows: Vec::new(),
             graph: Some(crate::views::branch_graph::BranchGraph::new(&commits, &references, &loaded.urls, truncated)),
+            default_branch: loaded.default_branch().to_owned(),
+            divergence_url: None,
         });
     }
     let (details, total) = loaded
@@ -136,17 +144,19 @@ async fn refs(
         RefKind::Branch => ("Branches", "branches", "branch"),
         RefKind::Tag => ("Tags", "tags", "tag"),
     };
-    // Only branches carry the "Protected" badge.
+    // Only branches carry the "Protected" badge and pull requests.
     let protected = match kind {
         RefKind::Branch => {
-            state
-                .services
-                .protection
-                .protected_branch_names(&loaded.ctx, &rows.iter().map(|row| row.name.clone()).collect::<Vec<_>>())
-                .await?
+            let names: Vec<_> = rows.iter().map(|row| row.name.clone()).collect();
+            let (protected, pulls) =
+                tokio::join!(state.services.protection.protected_branch_names(&loaded.ctx, &names), branch_pulls(&state, &loaded),);
+            attach_pulls(&mut rows, &pulls?, &loaded);
+            protected?
         }
         RefKind::Tag => Vec::new(),
     };
+    let divergence_url = (kind == RefKind::Branch && rows.iter().any(|row| !row.is_default))
+        .then(|| Pagination::new(total, &query, format!("{}/branches/divergence", loaded.urls.home()), vec![]).url(query.page.max(1)));
     Ok(RefsPage {
         graph: None,
         pagination: Pagination::new(total, &query, format!("{}/{tab}", loaded.urls.home()), vec![]),
@@ -154,6 +164,62 @@ async fn refs(
         header: loaded.header(&state, tab),
         kind: kind_name,
         rows,
+        default_branch: loaded.default_branch().to_owned(),
+        divergence_url,
     }
     .with_protected(&protected))
+}
+
+/// Pull requests from this repository's own branches, newest first: enough to label
+/// every branch on a page that has had a pull request recently.
+async fn branch_pulls(state: &AppState, loaded: &RepoPage) -> WebResult<Vec<PullListItem>> {
+    let filter = PullFilter { state: PullStateFilter::All, head_repo: Some(loaded.ctx.repo.repo.id), ..PullFilter::default() };
+    Ok(state.services.pulls.list_page(&loaded.ctx, &filter, 200, 0).await?.items)
+}
+
+/// Gives each branch its open pull request, or else its latest one, and a "New pull
+/// request" link when none is open (not for the default branch, nor while archived).
+fn attach_pulls(rows: &mut [RefRow], pulls: &[PullListItem], loaded: &RepoPage) {
+    let owner = loaded.ctx.repo.owner.name.as_str();
+    let name = loaded.ctx.repo.repo.name.as_str();
+    let archived = loaded.ctx.repo.repo.is_archived();
+    for row in rows.iter_mut().filter(|row| !row.is_default) {
+        let mine = || pulls.iter().filter(|item| item.pull.head_branch == row.name);
+        let chosen = mine().find(|item| item.issue.is_open()).or_else(|| mine().next());
+        row.pull = chosen.map(|item| BranchPull {
+            number: format!("#{}", item.issue.number.get()),
+            title: item.issue.title.to_string(),
+            url: issue_url(owner, name, IssueKind::Pull, item.issue.number),
+            badge: crate::views::pulls::badge(&item.issue, item.pull.is_draft, item.pull.merged_at.is_some()),
+        });
+        let has_open = chosen.is_some_and(|item| item.issue.is_open());
+        if !has_open && !archived {
+            row.new_pull_url = Some(new_pull_url(owner, name, loaded.default_branch(), &row.name));
+        }
+    }
+}
+
+/// `GET /{owner}/{repo}/branches/divergence`: how far each branch on a page of the
+/// branches page is behind and ahead of the default branch, as out-of-band cells.
+pub async fn branch_divergence(
+    State(state): State<AppState>,
+    viewer: Viewer,
+    Path((owner, repo)): Path<(String, String)>,
+    Query(query): Query<ListQuery>,
+) -> WebResult<BranchDivergenceFragment> {
+    let ctx = super::repo::open_pinned(&state, &viewer, &owner, &repo).await?;
+    let query = query.normalized();
+    let base = ctx.repo.repo.default_branch.clone();
+    let (details, _) = ctx
+        .reader
+        .ref_details_page(RefKind::Branch, query.q.clone(), base.clone(), query.page, LIST_PAGE_SIZE)
+        .await
+        .map_err(ServiceError::from)?;
+    let names: Vec<String> = details.into_iter().map(|detail| detail.name).filter(|name| *name != base).collect();
+    // Without a default branch there is nothing to measure against.
+    let Ok(found) = ctx.reader.divergence(base.clone(), names.clone(), DIVERGENCE_CAP).await else {
+        return Ok(BranchDivergenceFragment { cells: Vec::new() });
+    };
+    let branches: Vec<_> = names.into_iter().zip(found).collect();
+    Ok(BranchDivergenceFragment::new(&base, &branches))
 }

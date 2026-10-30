@@ -80,6 +80,14 @@ pub struct RepoHeader {
     pub active_tab: &'static str,
 }
 
+impl RepoHeader {
+    /// Commits, branches, tags and releases have no tab of their own: like GitHub, they
+    /// are pages of the Code tab, which stays selected on them.
+    pub fn code_tab_current(&self) -> bool {
+        matches!(self.active_tab, "code" | "commits" | "branches" | "tags" | "releases")
+    }
+}
+
 /// One branch or tag in the [`RefSwitcher`].
 #[derive(Debug, Clone)]
 pub struct RefLink {
@@ -119,6 +127,17 @@ impl RefSwitcher {
 fn shorten_revision(revision: &str) -> String {
     let is_full_id = revision.len() == 40 && revision.bytes().all(|b| b.is_ascii_hexdigit());
     if is_full_id { revision[..7].to_owned() } else { revision.to_owned() }
+}
+
+/// A branch with recent commits and no open pull request: "feature had recent pushes 5
+/// minutes ago · Compare & pull request".
+#[derive(Debug, Clone)]
+pub struct RecentPush {
+    pub branch: String,
+    pub branch_url: String,
+    pub when: String,
+    pub when_iso: String,
+    pub new_pull_url: String,
 }
 
 /// A commit as shown in banners and history lists.
@@ -248,6 +267,12 @@ pub struct TreePage {
     // Milestone 3: editing files in the browser (E); set for writers on a branch.
     pub new_file_url: Option<String>,
     pub upload_url: Option<String>,
+    /// The "Go to file" finder over the branch shown.
+    pub find_url: String,
+    /// "Create a new release" under an empty Releases section, for writers.
+    pub new_release_url: Option<String>,
+    /// Branches to offer a pull request for, at the repository root.
+    pub recent_pushes: Vec<RecentPush>,
 }
 
 /// The same document markup as the tree page without page decorations or listings.

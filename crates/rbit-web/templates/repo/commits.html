@@ -3,6 +3,7 @@
 {% block nav_context %}{% include "repo/nav_context.html" %}{% endblock %}
 {% block subnav %}{% include "repo/subnav.html" %}{% endblock %}
 {% block content %}
+<h1 class="mb-3 text-xl font-semibold tracking-tight">Commits</h1>
 <div class="mb-6 flex min-h-8 items-center gap-3">
   {% include "repo/ref_switcher.html" %}
 </div>
@@ -10,7 +11,7 @@
 <div class="space-y-6">
   {% for day in days %}
   <section aria-label="Commits on {{ day.date }}">
-    <h2 class="mb-2 text-xs font-medium text-ink-muted">{{ day.date }}</h2>
+    <h2 class="mb-2 flex items-center gap-2 text-[13px] text-ink-muted">{% call ui::icon("commit", "size-4") %}{% endcall %}Commits on {{ day.date }}</h2>
     <ol class="box">
       {% for commit in day.commits %}
       <li class="flex items-center gap-3 border-b border-line px-4 py-3 last:border-b-0">

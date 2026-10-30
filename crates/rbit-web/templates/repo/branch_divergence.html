@@ -1,0 +1,9 @@
+{#- Out-of-band divergence cells for the branches page (views::refs::BranchDivergenceFragment):
+    behind on the left, ahead on the right, each bar scaled to the page's largest count. -#}
+{% for cell in cells %}
+<span id="{{ cell.slot }}" class="divergence" hx-swap-oob="true" title="{{ cell.title }}">
+  <span class="divergence-side divergence-behind"><span class="tabular-nums">{{ cell.behind }}</span><svg viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true"><rect x="{{ 100 - cell.behind_width }}" width="{{ cell.behind_width }}" height="4"/></svg></span>
+  <span class="divergence-side divergence-ahead"><span class="tabular-nums">{{ cell.ahead }}</span><svg viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true"><rect width="{{ cell.ahead_width }}" height="4"/></svg></span>
+  <span class="sr-only">{{ cell.title }}</span>
+</span>
+{% endfor %}

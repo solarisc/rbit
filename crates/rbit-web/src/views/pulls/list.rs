@@ -87,4 +87,10 @@ pub struct PullListPage {
     pub hints: Vec<String>,
     pub list_url: String,
     pub menus: Vec<crate::views::issues::FilterMenu>,
+    pub labels_url: String,
+    pub milestones_url: String,
+    /// The visitor searched or filtered: offer to clear it.
+    pub is_filtered: bool,
+    /// "Compare & pull request" for branches with recent commits.
+    pub recent_pushes: Vec<crate::views::repo::RecentPush>,
 }

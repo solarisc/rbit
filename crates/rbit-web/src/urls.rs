@@ -63,6 +63,11 @@ impl RepoUrls {
         join(&self.base, "commit", id, "")
     }
 
+    /// The "Go to file" finder over `revision`.
+    pub fn find(&self, revision: &str) -> String {
+        format!("{}/find/{}", self.base, encode_path(revision))
+    }
+
     pub fn branches(&self) -> String {
         format!("{}/branches", self.base)
     }

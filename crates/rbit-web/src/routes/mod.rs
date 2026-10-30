@@ -16,6 +16,7 @@ mod dashboards;
 mod edits;
 // Milestone 3: external sign-in (O).
 mod external_auth;
+mod finder;
 mod forks;
 mod git_http;
 mod history;
@@ -115,6 +116,7 @@ fn page_routes(state: &AppState) -> Router<AppState> {
         .route("/{owner}/{repo}/tree/{*rest}", get(repo::tree))
         .route("/{owner}/{repo}/tree-commits/{*rest}", get(repo::entry_commits))
         .route("/{owner}/{repo}/language-files", get(repo::language_files))
+        .route("/{owner}/{repo}/find/{*revision}", get(finder::find))
         .route("/{owner}/{repo}/activity", get(repo::activity))
         .route("/{owner}/{repo}/blob/{*rest}", get(repo::blob))
         .route("/{owner}/{repo}/raw/{*rest}", get(repo::raw))
@@ -122,6 +124,7 @@ fn page_routes(state: &AppState) -> Router<AppState> {
         .route("/{owner}/{repo}/commits/{*rest}", get(repo::commits))
         .route("/{owner}/{repo}/commit/{revision}", get(history::commit))
         .route("/{owner}/{repo}/branches", get(history::branches))
+        .route("/{owner}/{repo}/branches/divergence", get(history::branch_divergence))
         .route("/{owner}/{repo}/tags", get(history::tags))
         .route("/{owner}/{repo}/ref-picker", get(ref_picker::page))
         .route("/{owner}/{repo}/ref-picker/options", get(ref_picker::options))

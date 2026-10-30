@@ -3,59 +3,70 @@
 {% block nav_context %}{% include "repo/nav_context.html" %}{% endblock %}
 {% block subnav %}{% include "repo/subnav.html" %}{% endblock %}
 {% block content %}
-<div class="mb-3 flex min-h-8 flex-wrap items-center justify-between gap-3">
-  <h1 class="text-[13px] font-medium text-ink-muted">{% if kind == "branch" %}Branches{% else %}Tags{% endif %} <span class="ml-1 text-ink-faint">{{ pagination.total }}</span></h1>
+<div class="mb-4 flex min-h-8 flex-wrap items-center justify-between gap-3">
+  <h1 class="text-xl font-semibold tracking-tight">{% if kind == "branch" %}Branches{% else %}Tags{% endif %}</h1>
   {% if kind == "branch" %}
-  <nav class="flex gap-1" aria-label="Branch view">
-    <a href="{{ header.branches_url }}?view=list" class="btn {% if graph.is_none() %}btn-primary{% endif %}" {% if graph.is_none() %}aria-current="page"{% endif %}>List</a>
-    <a href="{{ header.branches_url }}?view=tree" class="btn {% if graph.is_some() %}btn-primary{% endif %}" {% if graph.is_some() %}aria-current="page"{% endif %}>{% call ui::icon("branch", "size-3.5") %}{% endcall %}Git tree</a>
+  <nav class="segmented" aria-label="Branch view">
+    <a href="{{ header.branches_url }}?view=list" class="segmented-item" {% if graph.is_none() %}aria-current="page"{% endif %}>{% call ui::icon("menu", "size-3.5") %}{% endcall %}List</a>
+    <a href="{{ header.branches_url }}?view=tree" class="segmented-item" {% if graph.is_some() %}aria-current="page"{% endif %}>{% call ui::icon("branch", "size-3.5") %}{% endcall %}Git tree</a>
   </nav>
   {% endif %}
 </div>
 
-{% if graph.is_none() %}
+{% if let Some(graph) = graph %}
+<div class="box">{% include "repo/branch_graph.html" %}</div>
+{% else %}
 {% let search_label = self.search_label() %}{% include "repo/listing_controls.html" %}
-{% endif %}
+{% if rows.is_empty() %}
 <div class="box">
-  {% if let Some(graph) = graph %}
-  {% include "repo/branch_graph.html" %}
-  {% else %}
-  {% if rows.is_empty() %}
   {% if !pagination.query.is_empty() %}
-  <p class="p-6 text-ink-muted">No matching refs.</p>
+  {% call ui::empty_state("search", "Nothing matches", "No refs match your search.") %}{% endcall %}
   {% else if kind == "branch" %}
   {% call ui::empty_state("branch", "No branches yet", "Push a commit to create the first branch.") %}{% endcall %}
   {% else %}
   {% call ui::empty_state("tag", "No tags yet", "Tags mark releases and other important points in history.") %}{% endcall %}
   {% endif %}
-  {% else %}
+</div>
+{% else if kind == "branch" %}
+{% if let Some(row) = self.default_row() %}
+<section class="box mb-6 overflow-visible" aria-labelledby="default-branch-title">
+  <h2 id="default-branch-title" class="box-header box-title">Default</h2>
+  <ul>{% include "repo/branch_row.html" %}</ul>
+</section>
+{% endif %}
+{% let others = self.other_rows() %}
+{% if !others.is_empty() %}
+<section class="box overflow-visible" aria-labelledby="branches-title">
+  <h2 id="branches-title" class="box-header box-title">{% if pagination.query.is_empty() %}Branches{% else %}Matching branches{% endif %}</h2>
+  <div class="branch-row branch-columns" aria-hidden="true">
+    <span>Branch</span><span>Updated</span><span class="text-center">Behind · Ahead of <span class="font-mono">{{ default_branch }}</span></span><span>Pull request</span><span></span>
+  </div>
+  <ul>{% for row in others %}{% include "repo/branch_row.html" %}{% endfor %}</ul>
+</section>
+{% endif %}
+{% if let Some(url) = divergence_url %}<div hidden hx-get="{{ url }}" hx-trigger="load" hx-swap="outerHTML"></div>{% endif %}
+{% else %}
+<div class="box">
   <ul>
     {% for row in rows %}
-    <li class="flex items-center gap-3 border-b border-line px-4 py-3 last:border-b-0">
-      {% if kind == "branch" %}{% call ui::icon("branch", "size-4 shrink-0 text-ink-faint") %}{% endcall %}{% else %}{% call ui::icon("tag", "size-4 shrink-0 text-ink-faint") %}{% endcall %}{% endif %}
+    <li class="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line px-4 py-3 last:border-b-0">
+      {% call ui::icon("tag", "size-4 shrink-0 text-ink-faint") %}{% endcall %}
       <div class="min-w-0 flex-1">
-        <div class="flex items-center gap-2">
-          <a href="{{ row.url }}" class="truncate font-mono text-[13px] font-medium hover:underline hover:underline-offset-4">{{ row.name }}</a>
-          {% if row.is_default %}<span class="badge">default</span>{% endif %}
-          {% if row.protected %}<span class="badge" title="A branch protection rule applies to this branch">{% call ui::icon("shield", "size-3") %}{% endcall %}Protected</span>{% endif %}
-        </div>
-        <p class="mt-2 flex min-w-0 items-center gap-1.5 text-xs text-ink-muted">
-          <a href="{{ row.commit.url }}" class="truncate hover:text-ink">{{ row.commit.summary }}</a>
-          <span class="shrink-0 text-ink-faint">· {{ row.commit.author }} · <time datetime="{{ row.commit.when_iso }}">{{ row.commit.when }}</time></span>
+        <a href="{{ row.url }}" class="ref-pill">{{ row.name }}</a>
+        <p class="mt-1.5 flex min-w-0 items-center gap-1.5 text-xs text-ink-muted">
+          <a href="{{ row.commit.url }}" class="truncate hover:text-ink hover:underline">{{ row.commit.summary }}</a>
+          <span class="shrink-0 text-ink-faint">· <time datetime="{{ row.commit.when_iso }}" title="{{ row.commit.when_iso }}">{{ row.commit.when }}</time></span>
         </p>
       </div>
-      {% if let Some(url) = row.compare_url %}
-      <a href="{{ url }}" class="btn btn-ghost hidden h-7 shrink-0 px-2 text-xs sm:inline-flex sm:h-7" title="Compare with the default branch">Compare</a>
-      {% endif %}
-      {% if kind == "tag" %}
-      <a href="{{ row.zip_url }}" class="btn btn-ghost hidden h-7 shrink-0 px-2 text-xs sm:inline-flex sm:h-7" hx-boost="false" download title="Download ZIP">zip</a>
-      <a href="{{ row.tar_url }}" class="btn btn-ghost hidden h-7 shrink-0 px-2 text-xs sm:inline-flex sm:h-7" hx-boost="false" download title="Download tar.gz">tar.gz</a>
-      {% endif %}
-      <a href="{{ row.commit.url }}" class="btn h-7 shrink-0 px-2 font-mono text-xs sm:h-7">{{ row.commit.short_id }}</a>
+      <div class="flex shrink-0 items-center gap-1">
+        <a href="{{ row.zip_url }}" class="btn btn-ghost h-8 px-2 text-xs sm:h-7" hx-boost="false" download title="Download ZIP">{% call ui::icon("download", "size-3.5") %}{% endcall %}zip</a>
+        <a href="{{ row.tar_url }}" class="btn btn-ghost h-8 px-2 text-xs sm:h-7" hx-boost="false" download title="Download tar.gz">{% call ui::icon("download", "size-3.5") %}{% endcall %}tar.gz</a>
+        <a href="{{ row.commit.url }}" class="btn h-8 px-2 font-mono text-xs sm:h-7">{{ row.commit.short_id }}</a>
+      </div>
     </li>
     {% endfor %}
   </ul>
-  {% endif %}
-  {% endif %}
 </div>
+{% endif %}
+{% endif %}
 {% endblock %}

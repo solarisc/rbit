@@ -1118,6 +1118,18 @@ impl IssueService {
                 }
                 let targets = database.issues().find_numbers(repo, &scan.local).await?;
                 for target in targets {
+                    // A pull request's own merge commit names it ("Merge pull request #N",
+                    // "Title (#N)"). Its timeline shows the merge already (recorded before
+                    // the push is reported), so a reference would only repeat it.
+                    if target.kind == IssueKind::Pull
+                        && database
+                            .pulls()
+                            .find(target.id)
+                            .await?
+                            .is_some_and(|pull| pull.merge_commit_sha.as_deref() == Some(commit.id.as_str()))
+                    {
+                        continue;
+                    }
                     if database.issue_meta().record_commit_ref(target.id, &commit.id, Timestamp::now()).await? {
                         let event = TimelineEvent::CommitReferenced { commit: commit.id.clone(), summary: commit.summary.clone() };
                         self.timeline.record(target.id, pusher, event).await?;

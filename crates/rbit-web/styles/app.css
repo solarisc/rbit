@@ -408,15 +408,40 @@
     @apply rounded border border-line bg-subtle px-1.5 font-mono text-[11px] text-ink-muted;
   }
 
-  /* Underline tabs (sub-navigation). */
+  /* Underline tabs (sub-navigation): a rounded hover wash inside the row, and the current
+     tab underlined in the accent colour. */
   .tab {
-    @apply relative inline-flex h-11 shrink-0 items-center gap-1.5 px-1 text-[13px] text-ink-muted transition-colors
+    @apply relative isolate inline-flex h-11 shrink-0 items-center gap-1.5 px-2 text-[13px] text-ink-muted transition-colors
       duration-100 hover:text-ink;
+  }
+
+  .tab::before {
+    content: "";
+    @apply absolute inset-x-0 inset-y-1.5 -z-10 rounded-(--radius-ui) transition-colors duration-100;
+  }
+
+  .tab:hover::before {
+    @apply bg-hover;
   }
 
   .tab[aria-current="page"],
   .tab[aria-selected="true"] {
-    @apply text-ink after:absolute after:inset-x-0 after:-bottom-px after:h-px after:bg-ink;
+    @apply font-medium text-ink after:absolute after:inset-x-1 after:-bottom-px after:h-0.5 after:rounded-full after:bg-inverted;
+  }
+
+  /* A tab's leading icon. */
+  .tab-icon {
+    @apply size-4 shrink-0 text-ink-faint;
+  }
+
+  .tab[aria-current="page"] .tab-icon {
+    @apply text-ink-muted;
+  }
+
+  /* A count beside a tab or button label ("Issues 3"): a filled pill, quieter than a badge. */
+  .counter {
+    @apply inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-hover px-1.5 text-xs font-medium
+      leading-none text-ink tabular-nums;
   }
 
   /* Rows of a list or table inside a .box. */
@@ -482,6 +507,155 @@
 
   .aside-section {
     @apply border-t border-line pt-5;
+  }
+
+  .aside-title {
+    @apply text-[15px] font-semibold text-ink;
+  }
+
+  /* The code page's toolbar: the ref picker and branch/tag counts (or the path), then
+     "Go to file", "Add file" and the Code menu on the right. */
+  .code-toolbar {
+    @apply mb-3 flex min-h-8 flex-wrap items-center gap-2;
+  }
+
+  /* A branch or tag name set apart from prose, like a code span. */
+  .ref-pill {
+    @apply inline-block max-w-full truncate rounded-(--radius-ui) bg-hover px-1.5 py-0.5 align-middle font-mono text-xs
+      text-ink hover:underline hover:underline-offset-4;
+  }
+
+  /* Two or three linked choices shown as one control (List / Git tree). */
+  .segmented {
+    @apply inline-flex rounded-(--radius-ui) border border-line bg-subtle p-0.5;
+  }
+
+  .segmented-item {
+    @apply inline-flex h-8 items-center gap-1.5 rounded-[5px] px-3 text-[13px] font-medium text-ink-muted hover:text-ink sm:h-7;
+  }
+
+  .segmented-item[aria-current="page"] {
+    @apply bg-surface text-ink shadow-[0_0_0_1px_var(--line)];
+  }
+
+  /* The branches page: name, updated, behind/ahead, pull request and actions in columns
+     from `md` up; on phones the name leads and the rest wraps beneath it. */
+  .branch-row {
+    @apply flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-4 py-2.5 last:border-b-0;
+  }
+
+  .branch-row > :first-child {
+    @apply basis-full;
+  }
+
+  .branch-columns {
+    @apply hidden bg-subtle py-2 text-xs font-medium text-ink-muted;
+  }
+
+  @media (width >= 48rem) {
+    .branch-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 8.5rem 11rem 9.5rem 5.5rem;
+    }
+
+    .branch-columns {
+      display: grid;
+    }
+  }
+
+  /* Behind on the left, ahead on the right, meeting at a centre line. */
+  .divergence {
+    @apply grid min-h-5 grid-cols-2 items-center text-[11px] text-ink-muted;
+  }
+
+  .divergence-side {
+    @apply flex flex-col gap-0.5;
+  }
+
+  .divergence-behind {
+    @apply items-end border-r border-line-strong pr-1.5 text-right;
+  }
+
+  .divergence-ahead {
+    @apply items-start pl-1.5;
+  }
+
+  .divergence svg {
+    @apply block h-1 w-full;
+  }
+
+  .divergence-behind rect {
+    fill: var(--ink-faint);
+  }
+
+  .divergence-ahead rect {
+    fill: var(--inverted);
+  }
+
+  /* The compare bar: `base ▾ ← compare ▾` dropdowns in a box, wrapping on phones. */
+  .compare-bar {
+    @apply flex flex-wrap items-center gap-2 rounded-(--radius-ui) border border-line bg-subtle p-2;
+  }
+
+  .compare-bar > details {
+    @apply min-w-0 max-w-full;
+  }
+
+  /* The compare page's "Create pull request" box: once open, its button gives way to the form. */
+  .create-pull > summary {
+    @apply list-none;
+  }
+
+  .create-pull[open] > summary .btn {
+    @apply hidden;
+  }
+
+  /* The merge box's headline icon: green when ready, amber while checking, red when blocked. */
+  .merge-status {
+    @apply grid size-8 shrink-0 place-items-center rounded-full;
+  }
+
+  .merge-status-ready {
+    @apply bg-success text-inverted-ink;
+  }
+
+  .merge-status-checking {
+    background: color-mix(in oklab, var(--warning) 18%, var(--surface));
+    @apply text-warning;
+  }
+
+  .merge-status-blocked {
+    @apply bg-danger-subtle text-danger;
+  }
+
+  /* The merge method beside "Merge pull request", joined to it as one split button. */
+  .merge-method {
+    @apply -ml-px h-11 cursor-pointer rounded-r-(--radius-ui) border border-inverted bg-inverted px-2 text-[13px] font-medium
+      text-inverted-ink hover:bg-inverted-hover sm:h-8;
+  }
+
+  .merge-method-danger {
+    @apply border-danger/40 bg-surface text-danger hover:bg-danger-subtle;
+  }
+
+  .merge-method option {
+    @apply bg-surface text-ink;
+  }
+
+  /* "feature had recent pushes · Compare & pull request": tinted with the accent. */
+  .recent-push {
+    @apply mb-4 flex flex-col gap-3 rounded-(--radius-ui) border px-4 py-3 sm:flex-row sm:items-center;
+    border-color: color-mix(in oklab, var(--inverted) 40%, var(--line));
+    background: color-mix(in oklab, var(--inverted) 7%, var(--surface));
+  }
+
+  /* The finder's key hint gives way while the box is in use. */
+  .file-finder:focus-within .kbd {
+    @apply hidden;
+  }
+
+  .file-finder [data-find-option][aria-selected="true"] {
+    @apply bg-hover;
   }
 
   @media (width < 64rem) {

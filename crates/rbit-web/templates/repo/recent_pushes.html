@@ -1,0 +1,10 @@
+{#- "feature had recent pushes 5 minutes ago · Compare & pull request" above the files and the
+    pull request list; expects `recent_pushes: Vec<RecentPush>`. -#}
+{% import "macros.html" as ui %}
+{% for push in recent_pushes %}
+<div class="recent-push">
+  {% call ui::icon("branch", "hidden size-4 shrink-0 text-ink-muted sm:block") %}{% endcall %}
+  <p class="min-w-0 flex-1 text-[13px]"><a href="{{ push.branch_url }}" class="ref-pill">{{ push.branch }}</a> had recent pushes <time datetime="{{ push.when_iso }}" title="{{ push.when_iso }}">{{ push.when }}</time></p>
+  <a href="{{ push.new_pull_url }}" class="btn btn-primary h-11 w-full sm:h-8 sm:w-auto">{% call ui::icon("git-pull-request", "size-4") %}{% endcall %}Compare &amp; pull request</a>
+</div>
+{% endfor %}

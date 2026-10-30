@@ -2,6 +2,8 @@
     (views::timeline). Works without JavaScript; buttons are 44 px tall on touch. -#}
 {% import "macros.html" as ui %}
 <section id="{{ form.anchor }}" class="timeline-item" aria-label="Add a comment">
+  {#- Lines the box up with the comments above it, where their avatars sit. -#}
+  <span class="timeline-badge hidden sm:inline-flex" aria-hidden="true">{% call ui::icon("message-square", "size-3.5") %}{% endcall %}</span>
   <div class="box min-w-0 flex-1 overflow-hidden">
     {% if form.can_comment %}
     <form method="post" action="{{ form.action_url }}" class="p-3 sm:p-4">

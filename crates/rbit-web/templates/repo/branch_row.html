@@ -1,0 +1,35 @@
+{% import "macros.html" as ui %}
+{#- One branch on the branches page; expects `row: RefRow`. Columns from `md` up (app.css
+    `.branch-row`), stacked on phones. -#}
+<li class="branch-row">
+  <div class="flex min-w-0 flex-wrap items-center gap-2">
+    <a href="{{ row.url }}" class="ref-pill" id="{{ row.divergence_slot }}-name" title="{{ row.name }}">{{ row.name }}</a>
+    <button type="button" class="btn btn-ghost btn-icon size-7 sm:size-7" data-copy="{{ row.divergence_slot }}-name" aria-label="Copy branch name" title="Copy branch name">{% call ui::icon("copy", "size-3.5") %}{% endcall %}</button>
+    {% if row.is_default %}<span class="badge">default</span>{% endif %}
+    {% if row.protected %}<span class="badge" title="A branch protection rule applies to this branch">{% call ui::icon("shield", "size-3") %}{% endcall %}Protected</span>{% endif %}
+  </div>
+  <p class="flex min-w-0 items-center gap-1.5 text-xs text-ink-muted" title="{{ row.commit.summary }}">
+    {% call ui::avatar(row.commit.avatar, "size-4 text-[8px]") %}{% endcall %}
+    <time datetime="{{ row.commit.when_iso }}" title="{{ row.commit.author }} · {{ row.commit.when_iso }}" class="truncate">{{ row.commit.when }}</time>
+  </p>
+  <div class="min-w-0">{% if !row.is_default %}<span id="{{ row.divergence_slot }}" class="divergence" aria-busy="true"></span>{% endif %}</div>
+  <div class="min-w-0">
+    {% if let Some(pull) = row.pull %}
+    <a href="{{ pull.url }}" class="state-badge {{ pull.badge.class }} h-6 max-w-full" title="{{ pull.title }}">{% call ui::icon(pull.badge.icon, "size-3.5 shrink-0") %}{% endcall %}{{ pull.number }}</a>
+    {% else if let Some(url) = row.new_pull_url %}
+    <a href="{{ url }}" class="btn h-8 px-2.5 text-xs sm:h-7">{% call ui::icon("git-pull-request", "size-3.5") %}{% endcall %}New pull request</a>
+    {% endif %}
+  </div>
+  <div class="flex items-center justify-end gap-1">
+    <a href="{{ row.commit.url }}" class="btn h-8 px-2 font-mono text-xs sm:h-7" title="{{ row.commit.summary }}">{{ row.commit.short_id }}</a>
+    <details class="relative" data-menu>
+      <summary class="btn btn-ghost btn-icon h-8 cursor-pointer sm:h-7" aria-label="More actions for {{ row.name }}">{% call ui::icon("ellipsis", "size-4") %}{% endcall %}</summary>
+      <div class="menu right-0 w-52">
+        <a class="menu-item" href="{{ row.url }}">{% call ui::icon("code", "menu-icon") %}{% endcall %}Browse files</a>
+        <a class="menu-item" href="{{ row.history_url }}">{% call ui::icon("history", "menu-icon") %}{% endcall %}View history</a>
+        {% if let Some(url) = row.compare_url %}<a class="menu-item" href="{{ url }}">{% call ui::icon("git-compare", "menu-icon") %}{% endcall %}Compare</a>{% endif %}
+        <a class="menu-item" href="{{ row.zip_url }}" hx-boost="false" download>{% call ui::icon("download", "menu-icon") %}{% endcall %}Download ZIP</a>
+      </div>
+    </details>
+  </div>
+</li>

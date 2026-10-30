@@ -1,22 +1,41 @@
+{% import "macros.html" as ui %}
+{#- The branch/tag picker's body (views::ref_picker::RefPicker): a filter that narrows the
+    list as you type (only `.ref-picker-list` is replaced, so the box keeps its focus),
+    Branches and Tags tabs, and a link to the full page. Plain GET forms and links
+    without scripts. -#}
 <div class="ref-picker-results" aria-label="Branches and tags">
-  <form method="get" action="{{ picker.action }}" hx-get="{{ picker.options_action }}" hx-target="closest .ref-picker-results" hx-swap="outerHTML" class="flex gap-2 p-2" role="search">
+  <p class="border-b border-line px-3 py-2 text-[13px] font-semibold">Switch branches/tags</p>
+  <form method="get" action="{{ picker.action }}" hx-get="{{ picker.options_action }}" hx-target="closest .ref-picker-results" hx-swap="outerHTML" class="relative p-2" role="search">
     <input type="hidden" name="target" value="{{ picker.target }}">
     <input type="hidden" name="path" value="{{ picker.path }}">
     <input type="hidden" name="current" value="{{ picker.current }}">
-    <input type="search" name="q" value="{{ picker.query }}" class="input min-w-0 flex-1" placeholder="Find a branch or tag" aria-label="Find a branch or tag" maxlength="100">
-    <button type="submit" class="btn">Find</button>
+    <input type="hidden" name="kind" value="{{ picker.kind }}">
+    {% call ui::icon("search", "pointer-events-none absolute left-5 top-1/2 size-3.5 -translate-y-1/2 text-ink-faint") %}{% endcall %}
+    <input type="search" name="q" value="{{ picker.query }}" class="input h-8 pl-8 text-[13px] sm:h-8" placeholder="{% if picker.kind == "branch" %}Find a branch…{% else %}Find a tag…{% endif %}" aria-label="{% if picker.kind == "branch" %}Find a branch{% else %}Find a tag{% endif %}" maxlength="100" autocomplete="off" autocapitalize="none" spellcheck="false" data-ref-filter
+      hx-get="{{ picker.options_action }}" hx-trigger="input changed delay:150ms, search" hx-include="closest form" hx-target="next .ref-picker-list" hx-select=".ref-picker-list" hx-swap="outerHTML">
   </form>
-  {% for row in picker.rows %}
-  <a href="{{ row.link.url }}" class="menu-item {% if row.link.is_current %}bg-hover{% endif %}" data-ref-option>
-    <span class="min-w-0 flex-1 truncate font-mono text-xs">{{ row.link.name }}</span>
-    <span class="text-xs text-ink-faint">{{ row.kind }}</span>
-    {% if row.link.is_default %}<span class="badge">default</span>{% endif %}
-  </a>
-  {% endfor %}
-  {% if picker.total == 0 %}<p class="p-3 text-sm text-ink-muted">No matching branches or tags.</p>{% endif %}
-  <div class="flex items-center justify-between gap-2 border-t border-line p-2 text-xs text-ink-muted">
-    {% if let Some(previous) = picker.previous %}<a href="{{ previous.page }}" hx-get="{{ previous.options }}" hx-target="closest .ref-picker-results" hx-swap="outerHTML" class="btn">Previous</a>{% endif %}
-    <span>{{ picker.page }} / {{ picker.pages }} · {{ picker.total }} refs</span>
-    {% if let Some(next) = picker.next %}<a href="{{ next.page }}" hx-get="{{ next.options }}" hx-target="closest .ref-picker-results" hx-swap="outerHTML" class="btn">Next</a>{% endif %}
+  <nav class="flex gap-1 border-b border-line px-2" aria-label="Branches or tags">
+    <a href="{{ picker.branches_tab.page }}" hx-get="{{ picker.branches_tab.options }}" hx-target="closest .ref-picker-results" hx-swap="outerHTML" class="tab h-9" {% if picker.kind == "branch" %}aria-current="page"{% endif %}>Branches<span class="counter">{{ picker.branch_count }}</span></a>
+    <a href="{{ picker.tags_tab.page }}" hx-get="{{ picker.tags_tab.options }}" hx-target="closest .ref-picker-results" hx-swap="outerHTML" class="tab h-9" {% if picker.kind == "tag" %}aria-current="page"{% endif %}>Tags<span class="counter">{{ picker.tag_count }}</span></a>
+  </nav>
+  <div class="ref-picker-list">
+    <div class="max-h-72 overflow-y-auto p-1">
+      {% for row in picker.rows %}
+      <a href="{{ row.link.url }}" class="menu-item" data-ref-option {% if row.link.is_current %}aria-current="true"{% endif %} title="{{ row.link.name }}">
+        <span class="flex size-4 shrink-0 items-center justify-center">{% if row.link.is_current %}{% call ui::icon("check", "size-4") %}{% endcall %}{% endif %}</span>
+        <span class="min-w-0 flex-1 truncate {% if row.link.is_current %}font-semibold{% endif %}">{{ row.link.name }}</span>
+        {% if row.link.is_default %}<span class="badge">default</span>{% endif %}
+      </a>
+      {% endfor %}
+      {% if picker.total == 0 %}<p class="px-2.5 py-3 text-[13px] text-ink-muted">{% if picker.query.is_empty() %}Nothing to show.{% else %}No {% if picker.kind == "branch" %}branches{% else %}tags{% endif %} match “{{ picker.query }}”.{% endif %}</p>{% endif %}
+    </div>
+    {% if picker.pages > 1 %}
+    <div class="flex items-center justify-between gap-2 border-t border-line px-2 py-1.5 text-xs text-ink-muted">
+      {% if let Some(previous) = picker.previous %}<a href="{{ previous.page }}" hx-get="{{ previous.options }}" hx-target="closest .ref-picker-results" hx-swap="outerHTML" class="btn h-7 px-2 sm:h-7">Previous</a>{% else %}<span></span>{% endif %}
+      <span class="tabular-nums">{{ picker.page }} / {{ picker.pages }}</span>
+      {% if let Some(next) = picker.next %}<a href="{{ next.page }}" hx-get="{{ next.options }}" hx-target="closest .ref-picker-results" hx-swap="outerHTML" class="btn h-7 px-2 sm:h-7">Next</a>{% else %}<span></span>{% endif %}
+    </div>
+    {% endif %}
+    <a href="{{ picker.view_all_url }}" class="flex h-10 items-center justify-center border-t border-line text-[13px] font-medium text-ink hover:bg-hover sm:h-9">View all {% if picker.kind == "branch" %}branches{% else %}tags{% endif %}</a>
   </div>
 </div>

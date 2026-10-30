@@ -38,6 +38,8 @@ pub struct ComparePicker {
     pub repositories: Vec<String>,
     pub base_repo: String,
     pub head_repo: String,
+    /// Keep the pull request form open after comparing again (the new pull request page).
+    pub expand: bool,
 }
 
 impl ComparePicker {
@@ -52,6 +54,7 @@ impl ComparePicker {
             repositories: vec![full_name.clone()],
             base_repo: full_name.clone(),
             head_repo: full_name,
+            expand: false,
         }
     }
 
@@ -84,8 +87,31 @@ pub struct CompareSummary {
     pub more_commits: bool,
     /// The same comparison the other way round (same repository only).
     pub swap_url: Option<String>,
-    /// "Create pull request", when the head has commits the base lacks.
-    pub create_url: Option<String>,
+}
+
+/// The form that opens a pull request from a comparison, shown on the compare page behind
+/// its "Create pull request" button and open from the start under `/pulls/new`.
+#[derive(Debug, Clone)]
+pub struct PullForm {
+    pub action_url: String,
+    pub base: String,
+    /// The head spec (`branch`, `owner:branch`, `owner/name:branch`).
+    pub head: String,
+    /// The only commit's summary, or else the branch name.
+    pub title: String,
+    pub body: String,
+    pub expanded: bool,
+}
+
+/// What a comparison offers for a pull request.
+#[derive(Debug, Clone)]
+pub enum PullOffer {
+    /// The form, for a signed-in visitor when the head has commits the base lacks.
+    Create(PullForm),
+    /// An open pull request already proposes this head for this base: `(#n, url)`.
+    Existing(String, String),
+    /// A visitor who is not signed in: where signing in returns here.
+    SignIn(String),
 }
 
 #[derive(Debug, Clone)]
@@ -115,7 +141,6 @@ impl CompareSummary {
             commits: comparison.commits.iter().map(|c| CommitView::new(c, head_urls)).collect(),
             more_commits: comparison.ahead > comparison.commits.len(),
             swap_url: same_repository.then(|| urls.compare(head, base)),
-            create_url: None,
         }
     }
 }
@@ -128,6 +153,8 @@ pub struct ComparePage {
     pub picker: ComparePicker,
     /// `None` until both sides are chosen.
     pub summary: Option<CompareSummary>,
+    /// Opening a pull request from this comparison, when it can be.
+    pub offer: Option<PullOffer>,
     pub files: Vec<FileDiffView>,
     pub additions: usize,
     pub deletions: usize,

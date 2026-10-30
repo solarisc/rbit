@@ -7,7 +7,7 @@
     <span class="mt-0.5 shrink-0 {{ row.state.class }}" title="{{ row.state.label }}">{% call ui::icon(row.state.icon, "size-4") %}{% endcall %}<span class="sr-only">{{ row.state.label }}</span></span>
     <div class="min-w-0 flex-1">
       <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <a href="{{ row.url }}" class="min-w-0 break-words font-medium text-ink hover:underline hover:underline-offset-4">{{ row.title }}</a>
+        <a href="{{ row.url }}" class="min-w-0 break-words font-semibold text-ink hover:underline hover:underline-offset-4">{{ row.title }}</a>
         {% for chip in row.labels %}{% include "issues/label_chip.html" %}{% endfor %}
       </div>
       <p class="mt-1 truncate text-xs text-ink-faint">
