@@ -499,6 +499,61 @@
     .repo-tabs { @apply mx-0 px-0; }
   }
 
+  /* Below `lg` the tabs drop their icons (as on GitHub's narrow layouts) so they fit
+     beside the star and fork buttons; phones keep Code, Issues and Pull requests in the
+     row and list the other tabs under "More". */
+  .tab-more { @apply hidden; }
+
+  @media (width < 64rem) {
+    .repo-tabs .tab-icon { @apply hidden; }
+  }
+
+  @media (width < 40rem) {
+    .repo-tabs .tab-overflow { @apply hidden; }
+    .repo-tabs .tab-more { @apply block; }
+    .repo-tabs { @apply gap-0.5; }
+  }
+
+  /* The code page's About block on phones and tablets (repo/tree.html). */
+  .repo-about-mobile {
+    @apply mb-5 space-y-3;
+  }
+
+  .repo-about-stats {
+    @apply flex flex-wrap items-center gap-x-4 gap-y-2 text-[13px] text-ink-muted;
+  }
+
+  .repo-about-stats a {
+    @apply flex items-center gap-1.5 hover:text-ink;
+  }
+
+  .repo-about-stats b {
+    @apply font-semibold text-ink;
+  }
+
+  /* Phones list a long folder's first ten entries, then "View all files". */
+  .view-all-files {
+    @apply hidden;
+  }
+
+  @media (width < 40rem) {
+    #show-all-files:not(:checked) ~ .file-list-folded > li:nth-child(n + 11) { @apply hidden; }
+    #show-all-files:not(:checked) ~ .file-list-folded > li:nth-child(10) { @apply border-b-0; }
+
+    .view-all-files {
+      @apply block cursor-pointer border-t border-line py-3 text-center text-[13px] font-medium text-ink hover:bg-hover;
+    }
+
+    #show-all-files:checked ~ .view-all-files { @apply hidden; }
+
+    #show-all-files:focus-visible ~ .view-all-files { @apply outline-2 -outline-offset-2 outline-inverted; }
+
+    /* One toolbar row: the ref picker gives way to the Code and "…" buttons. */
+    .code-toolbar { @apply flex-nowrap; }
+    .code-toolbar > details[data-ref-picker] { @apply min-w-0; }
+    .code-toolbar > details[data-ref-picker] > summary { @apply max-w-full; }
+  }
+
   /* The repository home's sidebar (repo/tree.html): beside the files on large screens,
      after the README on smaller ones, where the About section moves above the files. */
   .repo-aside {

@@ -175,7 +175,15 @@ impl ContributionService {
         }
         let tip = match repo.reader.commit_id(format!("refs/heads/{}", repo.repo.repo.default_branch)).await {
             Ok(tip) => tip,
-            Err(rbit_git::GitError::NotFound(_)) => return Ok(Contributions::default()),
+            // A default branch that was never pushed: count the branch the code page lands
+            // on instead (the first one), so the calendar matches what people browse.
+            Err(rbit_git::GitError::NotFound(_)) => {
+                let refs = repo.reader.refs().await?;
+                let Some(first) = refs.iter().find(|r| r.kind == rbit_git::RefKind::Branch) else {
+                    return Ok(Contributions::default());
+                };
+                repo.reader.commit_id(format!("refs/heads/{}", first.name)).await?
+            }
             Err(error) => return Err(error.into()),
         };
         // Public callers can request partial days; keep their exact second bounds.

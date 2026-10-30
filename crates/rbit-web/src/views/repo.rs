@@ -86,6 +86,11 @@ impl RepoHeader {
     pub fn code_tab_current(&self) -> bool {
         matches!(self.active_tab, "code" | "branches" | "tags" | "releases")
     }
+
+    /// Whether the current tab is one phones list under "More" (repo/subnav.html).
+    pub fn overflow_tab_current(&self) -> bool {
+        matches!(self.active_tab, "commits" | "actions" | "activity" | "settings")
+    }
 }
 
 /// One branch or tag in the [`RefSwitcher`].
@@ -382,7 +387,6 @@ impl CommitDay {
 #[derive(Debug, Template, WebTemplate)]
 #[template(path = "repo/commits.html")]
 pub struct CommitsPage {
-    pub contributions: super::contributions::ContributionCalendar,
     pub page: Page,
     pub header: RepoHeader,
     pub switcher: RefSwitcher,

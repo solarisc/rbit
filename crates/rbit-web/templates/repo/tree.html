@@ -14,16 +14,24 @@
       <span class="badge">{% if header.is_private %}Private{% else %}Public{% endif %}</span>
       {% if header.archived %}<span class="badge">Archived</span>{% endif %}
     </div>
-    {#- Phones: the description above the files; the full sidebar follows the README. -#}
-    {% if let Some(description) = header.description %}<p class="mb-4 text-[13px] text-ink-muted lg:hidden">{{ description }}</p>{% endif %}
+    {#- Phones and tablets: About heads the page, as on GitHub; releases and languages follow the README. -#}
+    <section class="repo-about-mobile lg:hidden" aria-label="About">
+      {% if let Some(description) = header.description %}<p class="text-[15px] leading-snug text-ink">{{ description }}</p>{% endif %}
+      {% include "repo/document_links.html" %}
+      <p class="repo-about-stats">
+        <a href="{{ header.activity_url }}">{% call ui::icon("activity", "size-4") %}{% endcall %}Activity</a>
+        <a href="{{ header.home_url }}/stargazers">{% call ui::icon("star", "size-4") %}{% endcall %}<span><b>{{ header.star_count }}</b> {% if header.star_count == 1 %}star{% else %}stars{% endif %}</span></a>
+        <a href="{{ header.forks_url }}">{% call ui::icon("git-fork", "size-4") %}{% endcall %}<span><b>{{ header.fork_count }}</b> {% if header.fork_count == 1 %}fork{% else %}forks{% endif %}</span></a>
+      </p>
+    </section>
     {% include "repo/recent_pushes.html" %}
     {% endif %}
 
     <div class="code-toolbar">
       {% include "repo/ref_switcher.html" %}
       {% if at_root %}
-      <a href="{{ header.branches_url }}" class="btn btn-ghost px-2" title="Branches">{% call ui::icon("branch", "size-4 text-ink-muted") %}{% endcall %}<span><span class="font-semibold text-ink tabular-nums">{{ switcher.branch_count }}</span><span class="hidden text-ink-muted sm:inline"> {% if switcher.branch_count == 1 %}Branch{% else %}Branches{% endif %}</span></span></a>
-      <a href="{{ header.tags_url }}" class="btn btn-ghost px-2" title="Tags">{% call ui::icon("tag", "size-4 text-ink-muted") %}{% endcall %}<span><span class="font-semibold text-ink tabular-nums">{{ switcher.tag_count }}</span><span class="hidden text-ink-muted sm:inline"> {% if switcher.tag_count == 1 %}Tag{% else %}Tags{% endif %}</span></span></a>
+      <a href="{{ header.branches_url }}" class="btn btn-ghost px-2 max-sm:hidden" title="Branches">{% call ui::icon("branch", "size-4 text-ink-muted") %}{% endcall %}<span><span class="font-semibold text-ink tabular-nums">{{ switcher.branch_count }}</span><span class="hidden text-ink-muted sm:inline"> {% if switcher.branch_count == 1 %}Branch{% else %}Branches{% endif %}</span></span></a>
+      <a href="{{ header.tags_url }}" class="btn btn-ghost px-2 max-sm:hidden" title="Tags">{% call ui::icon("tag", "size-4 text-ink-muted") %}{% endcall %}<span><span class="font-semibold text-ink tabular-nums">{{ switcher.tag_count }}</span><span class="hidden text-ink-muted sm:inline"> {% if switcher.tag_count == 1 %}Tag{% else %}Tags{% endif %}</span></span></a>
       {% else %}
       {% include "repo/breadcrumbs.html" %}
       {% endif %}
@@ -35,9 +43,8 @@
           <kbd class="kbd pointer-events-none absolute right-2 top-1/2 -translate-y-1/2" aria-hidden="true">t</kbd>
           <div id="file-finder-results" class="menu right-0 top-full max-h-96 w-[min(28rem,calc(100vw-2rem))] overflow-y-auto" hidden data-find-menu></div>
         </form>
-        <a href="{{ find_url }}" class="btn btn-icon sm:hidden" aria-label="Go to file" title="Go to file">{% call ui::icon("search", "size-4") %}{% endcall %}</a>
         {% if new_file_url.is_some() || upload_url.is_some() %}
-        <details class="relative" data-menu>
+        <details class="relative max-sm:hidden" data-menu>
           <summary class="btn cursor-pointer">{% call ui::icon("plus", "size-3.5 sm:hidden") %}{% endcall %}<span class="hidden sm:inline">Add file</span>{% call ui::icon("chevron-down", "size-3.5 text-ink-muted") %}{% endcall %}</summary>
           <div class="menu right-0 w-52">
             {% if let Some(url) = new_file_url %}<a class="menu-item" href="{{ url }}">{% call ui::icon("file-plus", "menu-icon") %}{% endcall %}Create new file</a>{% endif %}
@@ -51,6 +58,19 @@
           <div class="menu right-0 w-[min(24rem,calc(100vw-2rem))]">{% include "repo/clone_panel.html" %}</div>
         </details>
         {% endif %}
+        {#- Phones: one row like GitHub's, with the rest of the toolbar in this menu. -#}
+        <details class="relative sm:hidden" data-menu>
+          <summary class="btn btn-icon cursor-pointer" aria-label="More file actions" title="More">{% call ui::icon("ellipsis", "size-4") %}{% endcall %}</summary>
+          <div class="menu right-0 w-56">
+            <a class="menu-item" href="{{ find_url }}">{% call ui::icon("search", "menu-icon") %}{% endcall %}Go to file</a>
+            {% if let Some(url) = new_file_url %}<a class="menu-item" href="{{ url }}">{% call ui::icon("file-plus", "menu-icon") %}{% endcall %}Create new file</a>{% endif %}
+            {% if let Some(url) = upload_url %}<a class="menu-item" href="{{ url }}">{% call ui::icon("upload", "menu-icon") %}{% endcall %}Upload files</a>{% endif %}
+            <div class="menu-divider"></div>
+            <a class="menu-item" href="{{ header.branches_url }}">{% call ui::icon("branch", "menu-icon") %}{% endcall %}<span class="flex-1">Branches</span><span class="counter">{{ switcher.branch_count }}</span></a>
+            <a class="menu-item" href="{{ header.tags_url }}">{% call ui::icon("tag", "menu-icon") %}{% endcall %}<span class="flex-1">Tags</span><span class="counter">{{ switcher.tag_count }}</span></a>
+            <a class="menu-item" href="{{ history_url }}">{% call ui::icon("history", "menu-icon") %}{% endcall %}Commit history</a>
+          </div>
+        </details>
       </div>
     </div>
 
@@ -59,13 +79,15 @@
       <div class="box-header gap-2.5 text-[13px]">
         {% call ui::avatar(latest.avatar, "size-5 text-[9px]") %}{% endcall %}
         <span class="shrink-0 font-semibold">{{ latest.author }}</span>
-        <a href="{{ latest.url }}" class="min-w-0 flex-1 truncate text-ink-muted hover:text-ink hover:underline hover:underline-offset-4" title="{{ latest.summary }}">{{ latest.summary }}</a>
+        <a href="{{ latest.url }}" class="min-w-0 flex-1 truncate text-ink-muted hover:text-ink hover:underline hover:underline-offset-4 max-sm:hidden" title="{{ latest.summary }}">{{ latest.summary }}</a>
         <a href="{{ latest.url }}" class="hidden shrink-0 font-mono text-xs text-ink-faint hover:text-ink sm:inline">{{ latest.short_id }}</a>
         <span class="hidden text-ink-faint sm:inline" aria-hidden="true">·</span>
-        <time class="hidden shrink-0 text-xs text-ink-faint sm:inline" datetime="{{ latest.when_iso }}" title="{{ latest.when_iso }}">{{ latest.when }}</time>
+        <a href="{{ latest.url }}" class="shrink-0 text-xs text-ink-faint hover:text-ink max-sm:flex-1 max-sm:text-[13px]"><time datetime="{{ latest.when_iso }}" title="{{ latest.when_iso }}">{{ latest.when }}</time></a>
         <a href="{{ history_url }}" class="btn btn-ghost -mr-2 h-8 shrink-0 px-2 text-[13px] sm:h-7" title="Commit history">{% call ui::icon("history", "size-4") %}{% endcall %}<span class="hidden sm:inline">{% if at_root %}<span id="commit-count">History</span>{% else %}History{% endif %}</span></a>
       </div>
-      <ul>
+      {% let folded = entries.len() > 12 %}
+      {% if folded %}<input type="checkbox" id="show-all-files" class="peer sr-only">{% endif %}
+      <ul class="{% if folded %}file-list-folded{% endif %}">
         {% if let Some(parent) = parent_url %}
         <li><a href="{{ parent }}" class="row row-link font-mono text-[13px] text-ink-muted" aria-label="Parent directory">{% call ui::icon("folder", "size-4 shrink-0 fill-current text-ink-faint") %}{% endcall %}..</a></li>
         {% endif %}
@@ -87,6 +109,7 @@
         </li>
         {% endfor %}
       </ul>
+      {% if folded %}<label for="show-all-files" class="view-all-files">View all files</label>{% endif %}
       {% if !entries.is_empty() %}
       <div hidden hx-get="{{ entry_commits_url }}" hx-trigger="load" hx-swap="outerHTML"></div>
       {% endif %}
@@ -97,13 +120,13 @@
 
   {% if at_root %}
   <aside class="repo-aside">
-    <section aria-labelledby="about-title">
+    {#- Below `lg` the About section heads the page instead (`.repo-about-mobile`). -#}
+    <section class="hidden lg:block" aria-labelledby="about-title">
       <h2 id="about-title" class="aside-title">About</h2>
-      {#- Phones show the description above the files already. -#}
       {% if let Some(description) = header.description %}
-      <p class="mt-3 text-[15px] leading-snug text-ink max-lg:hidden">{{ description }}</p>
+      <p class="mt-3 text-[15px] leading-snug text-ink">{{ description }}</p>
       {% else %}
-      <p class="mt-3 text-[13px] italic text-ink-faint max-lg:hidden">No description provided.</p>
+      <p class="mt-3 text-[13px] italic text-ink-faint">No description provided.</p>
       {% endif %}
       <div class="mt-3">{% include "repo/document_links.html" %}</div>
       <ul class="mt-3 space-y-2 text-[13px] text-ink-muted">

@@ -73,10 +73,17 @@ pub async fn activity(
     Query(query): Query<ActivityQuery>,
 ) -> WebResult<Response> {
     let loaded = RepoPage::load(&state, &viewer, &owner, &repo).await?;
-    let contributions = match repository_calendar(&state, &loaded, query.year, query.calendar.as_deref()).await? {
-        Ok(contributions) => contributions,
-        Err(fragment) => return Ok(fragment),
+    let calendar =
+        crate::views::contributions::ContributionCalendar::new(query.year, "Commits on this repository's default branch.", "");
+    let (start, end) = calendar.bounds();
+    let contributions = if query.calendar.is_some() {
+        calendar.populate(&state.services.contributions.repository(&loaded.ctx, start, end).await?)
+    } else {
+        calendar.deferred()
     };
+    if query.calendar.as_deref() == Some("fragment") {
+        return Ok(crate::views::contributions::ContributionFragment { contributions }.into_response());
+    }
     Ok(crate::views::contributions::ActivityPage {
         page: page.titled(format!("Activity · {}", loaded.ctx.repo.full_name())),
         header: loaded.header(&state, "activity"),
@@ -84,29 +91,6 @@ pub async fn activity(
     }
     .into_response())
 }
-/// The default branch's commit calendar for the Activity and Commits pages. It is deferred
-/// unless `calendar` is set; `calendar=fragment` is the deferred load itself and comes back
-/// as the finished response in `Err`.
-async fn repository_calendar(
-    state: &AppState,
-    loaded: &RepoPage,
-    year: Option<i32>,
-    calendar: Option<&str>,
-) -> WebResult<Result<crate::views::contributions::ContributionCalendar, Response>> {
-    let empty =
-        crate::views::contributions::ContributionCalendar::new(year, "Commits on this repository's configured default branch.", "");
-    let (start, end) = empty.bounds();
-    let contributions = if calendar.is_some() {
-        empty.populate(&state.services.contributions.repository(&loaded.ctx, start, end).await?)
-    } else {
-        empty.deferred()
-    };
-    if calendar == Some("fragment") {
-        return Ok(Err(crate::views::contributions::ContributionFragment { contributions }.into_response()));
-    }
-    Ok(Ok(contributions))
-}
-
 /// Raw downloads are read fully into memory; refuse anything absurdly large.
 const MAX_RAW_BYTES: usize = 100 * 1024 * 1024;
 
@@ -710,8 +694,6 @@ pub async fn raw(
 #[derive(Debug, Deserialize)]
 pub struct PageQuery {
     page: Option<usize>,
-    year: Option<i32>,
-    calendar: Option<String>,
 }
 
 /// `GET /{owner}/{repo}/commits` — history of the default branch.
@@ -741,10 +723,6 @@ pub async fn commits(
 }
 
 async fn render_commits(state: &AppState, loaded: RepoPage, page: Page, revision: String, query: PageQuery) -> WebResult<Response> {
-    let contributions = match repository_calendar(state, &loaded, query.year, query.calendar.as_deref()).await? {
-        Ok(contributions) => contributions,
-        Err(fragment) => return Ok(fragment),
-    };
     let page_number = query.page.unwrap_or(1).max(1);
     let skip = commit_offset(page_number)?;
     // Fetch one extra to learn whether an older page exists.
@@ -775,7 +753,6 @@ async fn render_commits(state: &AppState, loaded: RepoPage, page: Page, revision
         days: CommitDay::group(commits),
         newer_url: (page_number > 1).then(|| format!("{base}?page={}", page_number - 1)),
         older_url: has_older.then(|| format!("{base}?page={}", page_number + 1)),
-        contributions,
     }
     .into_response())
 }

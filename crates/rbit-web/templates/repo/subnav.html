@@ -20,7 +20,7 @@
     <a href="/{{ header.owner }}" class="block truncate text-xs text-ink-muted hover:text-ink">{{ header.owner }}</a>
     <p class="flex min-w-0 items-center gap-2">
       <a href="{{ header.home_url }}" class="truncate text-base font-semibold tracking-tight" title="{{ header.owner }}/{{ header.name }}">{{ header.name }}</a>
-      {% if header.is_private %}{% call ui::icon("lock", "size-3.5 shrink-0 text-ink-muted") %}{% endcall %}<span class="sr-only">Private</span>{% endif %}
+      <span class="badge shrink-0">{% if header.is_private %}Private{% else %}Public{% endif %}</span>
     </p>
   </div>
 
@@ -30,14 +30,24 @@
     <a class="tab" data-repo-tab="code" data-preload="visible" href="{{ header.home_url }}" {% if header.code_tab_current() %}aria-current="page"{% endif %}>{% call ui::icon("code", "tab-icon") %}{% endcall %}Code</a>
     <a class="tab" data-repo-tab="issues" data-preload="visible" href="{{ header.issues_url }}" {% if header.active_tab == "issues" %}aria-current="page"{% endif %}>{% call ui::icon("circle-dot", "tab-icon") %}{% endcall %}Issues{% if header.open_issues > 0 %}<span class="counter">{{ header.open_issues }}</span>{% endif %}</a>
     <a class="tab" data-repo-tab="pulls" data-preload="visible" href="{{ header.pulls_url }}" {% if header.active_tab == "pulls" %}aria-current="page"{% endif %}>{% call ui::icon("git-pull-request", "tab-icon") %}{% endcall %}Pull requests{% if header.open_pulls > 0 %}<span class="counter">{{ header.open_pulls }}</span>{% endif %}</a>
-    <a class="tab" data-repo-tab="commits" data-preload="visible" href="{{ header.commits_url }}" {% if header.active_tab == "commits" %}aria-current="page"{% endif %}>{% call ui::icon("commit", "tab-icon") %}{% endcall %}Commits</a>
+    <a class="tab tab-overflow" data-repo-tab="commits" data-preload="visible" href="{{ header.commits_url }}" {% if header.active_tab == "commits" %}aria-current="page"{% endif %}>{% call ui::icon("commit", "tab-icon") %}{% endcall %}Commits</a>
     {% if let Some(actions_url) = header.actions_url %}
-    <a class="tab" data-repo-tab="actions" data-preload="visible" href="{{ actions_url }}" {% if header.active_tab == "actions" %}aria-current="page"{% endif %}>{% call ui::icon("circle-play", "tab-icon") %}{% endcall %}Actions</a>
+    <a class="tab tab-overflow" data-repo-tab="actions" data-preload="visible" href="{{ actions_url }}" {% if header.active_tab == "actions" %}aria-current="page"{% endif %}>{% call ui::icon("circle-play", "tab-icon") %}{% endcall %}Actions</a>
     {% endif %}
-    <a class="tab" data-repo-tab="activity" data-preload="visible" href="{{ header.activity_url }}" {% if header.active_tab == "activity" %}aria-current="page"{% endif %}>{% call ui::icon("activity", "tab-icon") %}{% endcall %}Activity</a>
+    <a class="tab tab-overflow" data-repo-tab="activity" data-preload="visible" href="{{ header.activity_url }}" {% if header.active_tab == "activity" %}aria-current="page"{% endif %}>{% call ui::icon("activity", "tab-icon") %}{% endcall %}Activity</a>
     {% if header.can_admin %}
-    <a class="tab" data-repo-tab="settings" href="{{ header.settings_url }}" {% if header.active_tab == "settings" %}aria-current="page"{% endif %}>{% call ui::icon("settings", "tab-icon") %}{% endcall %}Settings</a>
+    <a class="tab tab-overflow" data-repo-tab="settings" href="{{ header.settings_url }}" {% if header.active_tab == "settings" %}aria-current="page"{% endif %}>{% call ui::icon("settings", "tab-icon") %}{% endcall %}Settings</a>
     {% endif %}
+    {#- Phones: the tabs after Pull requests move into this menu (app.css `.tab-overflow`). -#}
+    <details class="tab-more relative" data-menu>
+      <summary class="tab cursor-pointer" {% if header.overflow_tab_current() %}aria-current="page"{% endif %}>More{% call ui::icon("chevron-down", "size-3.5 text-ink-faint") %}{% endcall %}</summary>
+      <div class="menu right-0 w-48">
+        <a class="menu-item" href="{{ header.commits_url }}">{% call ui::icon("commit", "menu-icon") %}{% endcall %}Commits</a>
+        {% if let Some(actions_url) = header.actions_url %}<a class="menu-item" href="{{ actions_url }}">{% call ui::icon("circle-play", "menu-icon") %}{% endcall %}Actions</a>{% endif %}
+        <a class="menu-item" href="{{ header.activity_url }}">{% call ui::icon("activity", "menu-icon") %}{% endcall %}Activity</a>
+        {% if header.can_admin %}<a class="menu-item" href="{{ header.settings_url }}">{% call ui::icon("settings", "menu-icon") %}{% endcall %}Settings</a>{% endif %}
+      </div>
+    </details>
   </nav>
 
   <div class="repo-actions flex shrink-0 items-center gap-2">

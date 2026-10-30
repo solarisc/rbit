@@ -121,6 +121,16 @@ async fn contribution_counts_respect_visibility_authors_branches_and_years() {
     assert_eq!(updated.days.values().sum::<usize>(), 5, "a new branch tip must bypass the old cache entry");
     let empty = services.repositories.open(None, "alice", empty.repo.name.as_str()).await.unwrap();
     assert!(services.contributions.repository(&empty, start, end).await.unwrap().days.is_empty());
+    // A default branch that was never pushed falls back to the first branch, as the code page does.
+    let unborn = services
+        .repositories
+        .create(&alice, CreateRepository { name: "unborn".into(), description: String::new(), visibility: Visibility::Public })
+        .await
+        .unwrap();
+    let unborn = services.repositories.open(None, "alice", unborn.repo.name.as_str()).await.unwrap();
+    git(&unborn.disk_path, &["fetch", "-q", source.to_str().unwrap(), "side:side"], "alice@example.com", "2024-01-01T12:00:00Z");
+    let fallback = services.contributions.repository(&unborn, start, end).await.unwrap();
+    assert_eq!(fallback.days.values().sum::<usize>(), 5, "commits on the only branch count when the default branch is missing");
     let router = rbit_web::router(rbit_web::AppState::new(config, services));
     assert_contribution_pages(router).await;
 }
@@ -176,35 +186,16 @@ async fn assert_contribution_pages(router: axum::Router) {
         assert!(!html.contains("id=\"contributions-title\"") && !html.contains("calendar=fragment"), "{url}: no heatmap on the code page");
         assert!(html.contains("data-repo-tab=\"activity\"") && html.contains("data-repo-tab=\"commits\""));
     }
-    // The Commits page heads with the same calendar, loaded after the page.
-    let response = router.clone().oneshot(Request::builder().uri("/acme/public/commits").body(Body::empty()).unwrap()).await.unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    let html = String::from_utf8(axum::body::to_bytes(response.into_body(), 2_000_000).await.unwrap().to_vec()).unwrap();
-    assert!(html.contains("calendar=fragment") && !html.contains("data-contribution-day=\""), "the calendar is deferred");
-    assert!(html.contains("backdated") && html.contains("leap day"), "commit history still renders");
-    assert!(html.contains("href=\"/acme/public/commits\" aria-current=\"page\""), "the Commits tab is current");
-    let response = router
-        .clone()
-        .oneshot(
-            Request::builder()
-                .uri("/acme/public/commits/main?year=2024&page=2&calendar=fragment")
-                .header("HX-Request", "true")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    let html = String::from_utf8(axum::body::to_bytes(response.into_body(), 2_000_000).await.unwrap().to_vec()).unwrap();
-    assert!(html.contains("3 commits in 2024") && !html.contains("<main"), "the deferred load is the calendar alone");
-    let response = router
-        .clone()
-        .oneshot(Request::builder().uri("/alice/empty/commits?year=2024&calendar=1").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    let html = String::from_utf8(axum::body::to_bytes(response.into_body(), 2_000_000).await.unwrap().to_vec()).unwrap();
-    assert!(html.contains("No matching commits in this year."));
+    for url in ["/acme/public/commits", "/acme/public/commits/main?page=2", "/alice/empty/commits"] {
+        let response = router.clone().oneshot(Request::builder().uri(url).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let html = String::from_utf8(axum::body::to_bytes(response.into_body(), 2_000_000).await.unwrap().to_vec()).unwrap();
+        assert!(!html.contains("id=\"contributions-title\"") && !html.contains("calendar=fragment"), "{url}: the calendar lives on Activity");
+        assert!(html.contains("href=\"/acme/public/commits\" aria-current=\"page\"") || url.starts_with("/alice"), "{url}: the Commits tab is current");
+        if url == "/acme/public/commits" {
+            assert!(html.contains("backdated") && html.contains("leap day"), "commit history still renders");
+        }
+    }
     let response =
         router.clone().oneshot(Request::builder().uri("/alice/private/activity?year=2024").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
