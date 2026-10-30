@@ -600,7 +600,11 @@ async fn commits(
         Opened::Issue(url) => return Ok(super::timeline::moved_to_kind(&url)),
     };
     let changes = state.services.pulls.changes(&ctx, DiffLimits { max_files: 0, ..DiffLimits::default() }).await.ok();
-    let pull_header = header_without_diff(&state, &ctx, "commits", changes.as_ref().map(|c| c.ahead)).await;
+    let mut pull_header = header_without_diff(&state, &ctx, "commits", changes.as_ref().map(|c| c.ahead)).await;
+    // "Review changes" leads to the review form on Files changed, as from the other tabs.
+    if viewer.user().is_some() && ctx.thread.permissions.can_comment && ctx.issue().is_open() {
+        pull_header.review_url = Some(format!("{}#submit-review", PullUrls::for_context(&ctx).files));
+    }
     let commits: Vec<CommitView> =
         changes.as_ref().map(|c| c.commits.iter().map(|commit| CommitView::new(commit, &loaded.urls)).collect()).unwrap_or_default();
     let more_commits = changes.as_ref().is_some_and(|c| c.ahead > c.commits.len());

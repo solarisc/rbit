@@ -36,7 +36,7 @@
     <a class="tab" href="{{ pull.urls.files }}" {% if pull.active == "files" %}aria-current="page"{% endif %}>{% call ui::icon("file-diff", "tab-icon") %}{% endcall %}Files changed{% call slots::badge(pull.slot(crate::views::pulls::CountSlot::Files), pull.counts.files_badge(), false) %}{% endcall %}</a>
   </nav>
   {% if let Some(url) = pull.review_url %}
-  <a href="{{ url }}" class="btn btn-primary mb-1.5 hidden h-8 shrink-0 sm:inline-flex sm:h-7" {% if pull.active == "files" %}hx-boost="false"{% endif %}>{% call ui::icon("eye", "size-3.5") %}{% endcall %}Review changes</a>
+  <a href="{{ url }}" class="btn btn-primary mb-1.5 hidden h-8 shrink-0 sm:inline-flex sm:h-7" hx-boost="false">{% call ui::icon("eye", "size-3.5") %}{% endcall %}Review changes</a>
   {% endif %}
 </div>
 {%- if let Some(url) = pull.counts_url %}
