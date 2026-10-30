@@ -23,6 +23,7 @@ installUpdateNotice(document);
 // Title-Case like any HTTP header name (the server lists them in `Vary` with that spelling).
 const EPOCH_HEADER = "Rbit-Nav-Epoch";
 const PARTIAL_HEADER = "Rbit-Partial";
+const BUILD_HEADER = "Rbit-Build";
 const newEpoch = () => `${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 8)}`;
 let epoch = newEpoch();
 let activeNavigation = null;
@@ -206,6 +207,15 @@ document.addEventListener("htmx:beforeSwap", (event) => {
   const detail = event.detail;
   const config = detail.requestConfig;
   if (!config?.boosted || config.verb !== "get" || detail.isError || !detail.shouldSwap) return;
+  // rbit was upgraded since this page loaded: its inline stylesheet and scripts are the
+  // old build's, so new markup swapped in would render wrongly. Load the page in full.
+  const build = detail.xhr?.getResponseHeader(BUILD_HEADER);
+  const loaded = document.querySelector('meta[name="rbit-build"]')?.content;
+  if (build && loaded && build !== loaded) {
+    detail.shouldSwap = false;
+    location.assign(detail.xhr.responseURL || detail.pathInfo?.finalRequestPath);
+    return;
+  }
   // The server sent only the title, <main> and the tabs (with hx-swap-oob).
   const partial = Boolean(detail.xhr?.getResponseHeader(PARTIAL_HEADER));
   const scope = currentScope();

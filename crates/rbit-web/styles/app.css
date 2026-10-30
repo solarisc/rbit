@@ -595,12 +595,24 @@
 
   /* The branches page: name, updated, behind/ahead, pull request and actions in columns
      from `md` up; on phones the name leads and the rest wraps beneath it. */
+  /* Phones: the name and the "…" menu, then who and when beside the pull request. The
+     divergence bar, commit id and "New pull request" button wait for `md` (the menu has
+     both). */
   .branch-row {
-    @apply flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-4 py-2.5 last:border-b-0;
+    @apply grid items-center gap-x-3 gap-y-1 border-b border-line px-4 py-3 last:border-b-0 md:py-2.5;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .branch-row > :first-child {
-    @apply basis-full;
+  @media (width < 48rem) {
+    .branch-row > :nth-child(1) { grid-area: 1 / 1; }
+    .branch-row > :nth-child(1) > * { flex-shrink: 0; }
+    .branch-row > :nth-child(1) > .ref-pill { flex-shrink: 1; min-width: 0; }
+    .branch-row > :nth-child(2) { grid-area: 2 / 1; }
+    .branch-row > :nth-child(3) { @apply hidden; }
+    .branch-row > :nth-child(4) { grid-area: 2 / 2; justify-self: end; }
+    .branch-row > :nth-child(5) { grid-area: 1 / 2; }
+    .branch-row .branch-new-pull,
+    .branch-row .branch-sha { @apply hidden; }
   }
 
   .branch-columns {

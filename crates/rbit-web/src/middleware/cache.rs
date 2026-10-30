@@ -64,6 +64,9 @@ pub async fn preload_guard(request: Request, next: Next) -> Response {
     next.run(request).await
 }
 
+/// The build ([`crate::assets::build_version`]) that rendered an HTML response.
+pub const BUILD_HEADER: header::HeaderName = header::HeaderName::from_static("rbit-build");
+
 /// Cache headers for server-rendered HTML.
 ///
 /// * Every page is `private` (it may show the viewer's own data) and must be
@@ -89,6 +92,11 @@ pub async fn html_caching(request: Request, next: Next) -> Response {
     // on it would throw a year-long cache entry away after every form post.
     let vary = if is_immutable(&parts.headers) { "HX-Request" } else { "HX-Request, Rbit-Nav-Epoch" };
     append_vary(&mut parts.headers, vary);
+    // Which deploy rendered the page: nav.js loads a page in full instead of swapping it
+    // into one whose inline stylesheet and scripts came from an older build.
+    if let Ok(value) = HeaderValue::from_str(crate::assets::build_version()) {
+        parts.headers.insert(BUILD_HEADER, value);
+    }
     if parts.status != StatusCode::OK || parts.headers.contains_key(header::CACHE_CONTROL) || parts.headers.contains_key(header::SET_COOKIE)
     {
         return Response::from_parts(parts, body);
