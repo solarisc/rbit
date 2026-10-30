@@ -525,7 +525,11 @@ async fn conversation(
         crate::views::issues::sidebar(&state, &ctx.thread, user),
         closed_head,
     );
-    let (thread, data) = (thread?, data?);
+    let (mut thread, data) = (thread?, data?);
+    // A merged pull request cannot be reopened (the server refuses), so it offers no button.
+    if ctx.pull.is_merged() {
+        thread.form.can_set_state = false;
+    }
     // Then what needs the reviews, with the viewer's read mark: the merge box counts the
     // reviews just loaded instead of reading them again.
     let merge_box = async { if is_open { pulls.merge_box_from(user, &ctx, &data).await.map(Some) } else { Ok(None) } };
