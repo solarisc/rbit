@@ -77,7 +77,12 @@ async fn archived_repositories_over_http() {
 }
 
 fn openssh_available() -> bool {
-    let found = |tool: &str| Command::new(tool).arg("-V").output().is_ok() || Command::new(tool).arg("-?").output().is_ok();
+    // Looked up on PATH rather than run: `ssh-keygen` has no version flag, and Windows'
+    // OpenSSH never exits after printing its usage to a pipe.
+    let found = |tool: &str| {
+        let file = if cfg!(windows) { format!("{tool}.exe") } else { tool.to_owned() };
+        std::env::var_os("PATH").is_some_and(|path| std::env::split_paths(&path).any(|dir| dir.join(&file).is_file()))
+    };
     if found("ssh") && found("ssh-keygen") {
         return true;
     }
