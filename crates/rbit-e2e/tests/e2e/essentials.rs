@@ -287,7 +287,7 @@ async fn blame_and_compare_pages_render() {
     anonymous.get("/alice/code/blame/main/nope.rs").await.expect_status(StatusCode::NOT_FOUND);
 
     let compare = anonymous.get("/alice/code/compare/main...feature").await;
-    compare.expect_status(StatusCode::OK).expect_contains(&["1 ahead", "0 behind", "Feature work", "feature.txt"]);
+    compare.expect_status(StatusCode::OK).expect_contains(&["1</span> commit ahead", "0</span> behind", "Feature work", "feature.txt"]);
     anonymous.get("/alice/code/compare?base=main&head=feature").await.expect_redirect("/alice/code/compare/main...feature");
     anonymous.get("/alice/code/compare/main...nope").await.expect_status(StatusCode::NOT_FOUND);
 }

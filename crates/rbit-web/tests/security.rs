@@ -252,7 +252,7 @@ async fn ref_picker_page_and_fragment_enforce_repository_visibility() {
                 assert_eq!(response.status(), expected, "{name}/{suffix}, signed in: {signed_in}");
                 if expected == StatusCode::OK {
                     let body = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
-                    assert!(String::from_utf8_lossy(&body).contains("No matching branches or tags."));
+                    assert!(String::from_utf8_lossy(&body).contains("match “missing”"), "the empty picker names the search");
                 }
             }
         }
