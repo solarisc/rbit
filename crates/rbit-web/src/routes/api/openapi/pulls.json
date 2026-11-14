@@ -402,7 +402,7 @@
             "description": "Merged"
           },
           "404": {
-            "description": "Not merged (or not found)"
+            "$ref": "#/components/responses/NotFound"
           }
         }
       },

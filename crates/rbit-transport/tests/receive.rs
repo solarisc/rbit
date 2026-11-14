@@ -183,19 +183,18 @@ fn list(capabilities: &str, names: &[&str]) -> CommandList {
 }
 
 fn refused(name: &str, reason: &str) -> Refusal {
-    Refusal { name: name.to_owned(), reason: reason.to_owned() }
+    Refusal::new(name, "protected_branch_deletion", reason, "Ask a repository administrator to change the rule.")
 }
 
 const PROTECTED: &str = "protected branch: deleting it is not allowed";
 
+/// What a client sees of a [`PROTECTED`] refusal: its code, the text and the fix.
+const CODED: &str =
+    "[protected_branch_deletion] protected branch: deleting it is not allowed (fix: Ask a repository administrator to change the rule.)";
+
 fn expected_report() -> Vec<u8> {
-    [
-        pkt("unpack ok\n"),
-        pkt(&format!("ng refs/heads/main {PROTECTED}\n")),
-        pkt(&format!("ng refs/heads/topic {DECLINED}\n")),
-        b"0000".to_vec(),
-    ]
-    .concat()
+    [pkt("unpack ok\n"), pkt(&format!("ng refs/heads/main {CODED}\n")), pkt(&format!("ng refs/heads/topic {DECLINED}\n")), b"0000".to_vec()]
+        .concat()
 }
 
 #[test]
@@ -206,17 +205,14 @@ fn refusal_reports_for_report_status_and_v2() {
         assert_eq!(report, expected_report(), "{capabilities}");
     }
     let report = refusal(&list("report-status", &["refs/heads/main", "refs/heads/topic"]), &refusals);
-    assert_eq!(
-        String::from_utf8(report).unwrap(),
-        format!("000eunpack ok\n0044ng refs/heads/main {PROTECTED}\n004cng refs/heads/topic {DECLINED}\n0000")
-    );
+    assert_eq!(report, expected_report());
 }
 
 #[test]
 fn refusal_reports_on_a_side_band() {
     let refusals = [refused("refs/heads/main", PROTECTED)];
     let names = ["refs/heads/main", "refs/heads/topic"];
-    let message = format!("rbit: refs/heads/main: {PROTECTED}\n");
+    let message = format!("rbit: refs/heads/main: {CODED}\n");
     for capabilities in ["report-status side-band-64k", "report-status-v2 side-band", "side-band-64k report-status"] {
         let report = refusal(&list(capabilities, &names), &refusals);
         let mut expected = format!("{:04x}\x02{message}", message.len() + 5).into_bytes();
@@ -233,14 +229,15 @@ fn no_report_without_report_status() {
     let refusals = [refused("refs/heads/main", PROTECTED)];
     assert_eq!(refusal(&list("side-band-64k agent=git/2.50.0", &["refs/heads/main"]), &refusals), b"");
     assert_eq!(refusal(&list("", &["refs/heads/main"]), &refusals), b"");
-    assert_eq!(refusal_message(&refusals), format!("refs/heads/main: {PROTECTED}\n"));
+    assert_eq!(refusal_message(&refusals), format!("refs/heads/main: {CODED}\n"));
 }
 
 #[test]
 fn reasons_cannot_break_the_report() {
     let refusals = [refused("refs/heads/main", "bad\nreason")];
     let report = refusal(&list("report-status", &["refs/heads/main"]), &refusals);
-    assert_eq!(report, [pkt("unpack ok\n"), pkt("ng refs/heads/main bad reason\n"), b"0000".to_vec()].concat());
+    let line = "ng refs/heads/main [protected_branch_deletion] bad reason (fix: Ask a repository administrator to change the rule.)\n";
+    assert_eq!(report, [pkt("unpack ok\n"), pkt(line), b"0000".to_vec()].concat());
 }
 
 /// Splits side-band packets into (band, data), checking each packet's size limit.

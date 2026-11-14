@@ -31,6 +31,15 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the runs in progress, so the run finishes instead of staying queued. A waiting job's
   `ahead` count follows the same order.
 
+### Refusal codes
+
+- Every refused push, merge or API call carries a stable machine code. A refused push names
+  it in its report as `ng <ref> [code] reason (fix: …)`, so `git push` users and agents see
+  the same code. API error bodies gain optional `rule` (the rule or setting that refused) and
+  `remediation` (what would make the request pass) next to `code`. Existing codes are kept;
+  the new ones are listed in [docs/error-codes.md](docs/error-codes.md).
+- `rbit --json` errors carry the same `rule` and `remediation` when the server names them.
+
 ## [0.2.2] - 2026-11-13
 
 ### Dependency maintenance

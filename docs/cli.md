@@ -55,7 +55,9 @@ A failure with `--json` is an object too:
 `{"schema":"rbit.error/1","code":"pending","message":"…","hint":"rbit run watch --sha …"}`.
 `code` is the server's (every API error body has one: `not_found`, `unauthenticated`,
 `forbidden`, `conflict`, `head_changed`, `base_changed`, `blocked`, `invalid`,
-`rate_limited`, `unavailable`, …) or the client's own (`pending`, `timeout`, `usage`). A
+`rate_limited`, `unavailable`, …; a refusal names a precise one such as
+`protected_branch_force_push`, with `rule` and `remediation` fields, see
+[error codes](error-codes.md)) or the client's own (`pending`, `timeout`, `usage`). A
 `hint` is a command that can be run as it is. A read the server throttles (`429` with a
 `Retry-After` of at most 30 seconds) is tried again after that wait, up to three times, so a
 long `run watch` survives a busy moment; a write is never repeated.
@@ -72,6 +74,8 @@ The exit code says what kind of answer it was, with or without `--json`:
 | 5 | a precondition failed: the head or base moved, a conflict |
 | 8 | pending, or a wait that timed out |
 | 9 | the answer cannot be trusted: a log cut short, the server unavailable |
+
+A precise error code the table does not name keeps the exit code its HTTP status implies: 401 and 403 exit 3, 404 exits 4, 409 exits 5, 422 exits 2, 429 and 5xx exit 9, and any other status exits 1. So a refused push (`token_scope_insufficient`, `protected_branch_force_push`) exits 3 and a merge that waits for a check (`merge_checks_required`) exits 1.
 
 ## Where am I
 

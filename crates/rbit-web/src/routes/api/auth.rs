@@ -45,6 +45,7 @@ use super::{
 };
 use crate::{AppState, client_ip::ClientIp};
 
+mod scope;
 mod watch;
 
 /// The caller of an API request.
@@ -128,11 +129,7 @@ impl Caller {
             return Err(ApiError::forbidden("A limited token cannot do what needs the admin scope"));
         }
         match self.scope {
-            Some(granted) if !granted.allows(scope) => Err(ApiError::forbidden(format!(
-                "This token's scope ({}) does not allow this; it needs the {} scope",
-                granted.as_str(),
-                scope.as_str()
-            ))),
+            Some(granted) if !granted.allows(scope) => Err(scope::refusal(granted, scope)),
             _ => Ok(user),
         }
     }
