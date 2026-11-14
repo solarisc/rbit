@@ -1,7 +1,7 @@
 //! Admission precedes one-use proof consumption; capacity failures are not bad credentials.
 
-use super::verification::Claims;
 use super::password_budget::PasswordBudget;
+use super::verification::Claims;
 use super::{GitPasswordOutcome, SecondFactorProof, Throttle};
 use crate::{ServiceError, Services, ThrottleScope};
 use rbit_core::User;
@@ -42,10 +42,8 @@ impl Services {
         async move {
             let login = login.trim();
             let budget = PasswordBudget::start(&self.throttle, ThrottleScope::GitAuth, client, login)?;
-            let (account, result) = self
-                .accounts
-                .authenticate_resolved(login, std::mem::take(&mut *password), |account| budget.before_verify(account))
-                .await;
+            let (account, result) =
+                self.accounts.authenticate_resolved(login, std::mem::take(&mut *password), |account| budget.before_verify(account)).await;
             let user = match result {
                 Ok(user) => user,
                 Err(error) => {
