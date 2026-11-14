@@ -93,10 +93,10 @@ fn unsupported_events_are_warnings_and_supported_ones_are_not() {
     assert_eq!(warnings("on: {push: {}, issues: {types: [opened]}}"), [warning("issues")]);
     assert_eq!(warning("release").message(), "release does not start runs on rbit");
     // Every event rbit starts runs for is silent, in its short and its long form.
-    assert!(warnings("on: [push, pull_request, workflow_dispatch]").is_empty());
-    assert!(warnings("on: {schedule: [{cron: '0 3 * * 1'}], workflow_call: {}}").is_empty());
-    assert!(warnings("on:\n  workflow_run: {workflows: [CI]}\n  repository_dispatch: {}").is_empty());
-    assert!(warnings("on: {push: {}, pull_request: {}}").is_empty());
+    assert_eq!(warnings("on: [push, pull_request, workflow_dispatch]"), []);
+    assert_eq!(warnings("on: {schedule: [{cron: '0 3 * * 1'}], workflow_call: {}}"), []);
+    assert_eq!(warnings("on:\n  workflow_run: {workflows: [CI]}\n  repository_dispatch: {}"), []);
+    assert_eq!(warnings("on: {push: {}, pull_request: {}}"), []);
 }
 
 // Actions: the events that start runs are exactly the ones the parser knows.

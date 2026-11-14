@@ -24,10 +24,16 @@ pub enum ActionsMessage<'a> {
     RerunAll,
     DownloadTar,
     Expires,
-    RerunJob { name: &'a str },
-    Summary { job: &'a str },
+    RerunJob {
+        name: &'a str,
+    },
+    Summary {
+        job: &'a str,
+    },
     /// "release does not start runs on rbit": a workflow names an `on:` event rbit never starts a run for.
-    UnsupportedEvent { event: &'a str },
+    UnsupportedEvent {
+        event: &'a str,
+    },
 }
 
 impl ActionsMessage<'_> {

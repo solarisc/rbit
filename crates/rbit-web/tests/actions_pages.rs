@@ -388,9 +388,8 @@ async fn workflows_warn_about_events_that_never_start_runs() {
     let (status, _, body) = fixture.get("/api/v1/repos/alice/rocket/actions/workflows", &fixture.owner, None).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     let listed: serde_json::Value = serde_json::from_str(&body).unwrap();
-    let warnings_of = |id: &str| {
-        listed["workflows"].as_array().unwrap().iter().find(|workflow| workflow["id"] == id).unwrap()["warnings"].clone()
-    };
+    let warnings_of =
+        |id: &str| listed["workflows"].as_array().unwrap().iter().find(|workflow| workflow["id"] == id).unwrap()["warnings"].clone();
     assert_eq!(
         warnings_of("release.yml"),
         serde_json::json!([{ "code": "unsupported_event", "message": "release does not start runs on rbit" }])

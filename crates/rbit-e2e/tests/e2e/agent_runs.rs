@@ -205,10 +205,7 @@ async fn an_agent_finds_the_runs_of_its_commit_and_reads_codes_not_prose() {
     let (_, unsupported) = agent.get("repos/alice/rocket/agent/status?branch=release-only").await;
     assert_eq!(
         (unsupported["ci"]["state"].as_str(), unsupported["ci"]["reason"].as_str()),
-        (
-            Some("none_expected"),
-            Some("the workflows only name events rbit never starts runs for (see each workflow's warnings)")
-        ),
+        (Some("none_expected"), Some("the workflows only name events rbit never starts runs for (see each workflow's warnings)")),
         "{unsupported}"
     );
     // A workflow that does listen for pushes, but whose branch filter leaves this commit out, is
