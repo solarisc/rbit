@@ -13,15 +13,18 @@ use axum::{
     response::{IntoResponse, Redirect, Response},
     routing::{get, post},
 };
+use axum_extra::extract::CookieJar;
 use rbit_core::{AccessTokenId, TokenScope, User};
 use rbit_services::{AccessTokenService, CreateAccessToken, ServiceError, profiles::UpdateProfile};
 use serde::Deserialize;
 
 use crate::{
     AppState,
+    client_ip::Https,
     error::{WebError, WebResult},
     extract::SignedIn,
     routes::{recovery::form_error_response, themes::GalleryQuery},
+    sudo,
     views::{
         components::FormError,
         layout::Page,
@@ -180,6 +183,9 @@ pub struct CreateTokenForm {
     name: String,
     scope: Option<String>,
     expires: Option<String>,
+    /// Needed only when the session has no recent proof of identity.
+    #[serde(default)]
+    current_password: String,
 }
 
 /// `GET /settings/tokens`
@@ -196,12 +202,26 @@ pub async fn create_token(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
     page: Page,
+    jar: CookieJar,
+    Https(https): Https,
     Form(form): Form<CreateTokenForm>,
 ) -> WebResult<Response> {
     let choices = AccessTokenService::EXPIRY_CHOICES;
     let scope = form.scope.as_deref().and_then(TokenScope::parse).unwrap_or_default();
     let expiry = form.expires.as_deref().and_then(|value| parse_expiry(value, choices));
     let username = user.name().to_string();
+    let session = crate::middleware::session_token(&jar).map(|token| token.encode()).unwrap_or_default();
+    // Creating a token is a credential change: it needs a recent proof of identity.
+    let jar = match sudo::confirm(&state, jar, https, &session, &user, form.current_password.clone()).await {
+        Ok(jar) => jar,
+        Err(ServiceError::Invalid(message)) => {
+            let tokens = state.services.tokens.list(&user).await?;
+            let form = TokenForm::submitted(form.name.clone(), scope, expiry, choices);
+            let page = TokensPage::new(page, username, &tokens, form).with_error(FormError::from_message(&message));
+            return Ok((StatusCode::UNPROCESSABLE_ENTITY, page).into_response());
+        }
+        Err(other) => return Err(other.into()),
+    };
 
     let result = match expiry {
         Some(expires_in_days) => {
@@ -216,7 +236,7 @@ pub async fn create_token(
             let tokens = state.services.tokens.list(&user).await?;
             let page =
                 TokensPage::new(page, username, &tokens, TokenForm::blank(choices)).with_created(CreatedToken { name: token.name, secret });
-            Ok(([(header::CACHE_CONTROL, "no-store")], page).into_response())
+            Ok((jar, [(header::CACHE_CONTROL, "no-store")], page).into_response())
         }
         Err(ServiceError::Invalid(message)) => {
             let tokens = state.services.tokens.list(&user).await?;

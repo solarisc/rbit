@@ -11,6 +11,7 @@ use axum::{
     response::{IntoResponse, Redirect, Response},
     routing::{get, post},
 };
+use axum_extra::extract::CookieJar;
 use rbit_core::config::SshConfig;
 use rbit_services::{
     ServiceError,
@@ -21,8 +22,10 @@ use serde::Deserialize;
 use super::repo::RepoPage;
 use crate::{
     AppState,
+    client_ip::Https,
     error::{WebError, WebResult},
     extract::{SignedIn, Viewer},
+    sudo,
     views::{
         components::FormError,
         layout::Page,
@@ -46,6 +49,9 @@ pub struct KeyFormInput {
     title: String,
     #[serde(default)]
     key: String,
+    /// Needed only when the session has no recent proof of identity.
+    #[serde(default)]
+    current_password: String,
     /// The "Allow write access" checkbox (deploy keys only); present when ticked.
     allow_write: Option<String>,
 }
@@ -81,12 +87,26 @@ pub async fn add_key(
     State(state): State<AppState>,
     SignedIn(user): SignedIn,
     page: Page,
+    jar: CookieJar,
+    Https(https): Https,
     Form(input): Form<KeyFormInput>,
 ) -> WebResult<Response> {
+    let session = crate::middleware::session_token(&jar).map(|token| token.encode()).unwrap_or_default();
+    let password = input.current_password.clone();
     let form = input.into_form();
+    // Adding a key is a credential change: it needs a recent proof of identity.
+    let jar = match sudo::confirm(&state, jar, https, &session, &user, password).await {
+        Ok(jar) => jar,
+        Err(ServiceError::Invalid(message)) => {
+            let keys = state.services.ssh_keys.list_user_keys(&user).await?;
+            let page = SshKeysPage::new(page, &keys, test_command(&state)).rejected(form, FormError::from_message(&message));
+            return Ok((StatusCode::UNPROCESSABLE_ENTITY, page).into_response());
+        }
+        Err(other) => return Err(other.into()),
+    };
     let request = AddSshKey { title: form.title.clone(), key: form.key.clone() };
     match state.services.ssh_keys.add_user_key(&user, request).await {
-        Ok(_) => Ok(Redirect::to(SettingsSection::SshKeys.url()).into_response()),
+        Ok(_) => Ok((jar, Redirect::to(SettingsSection::SshKeys.url())).into_response()),
         Err(ServiceError::Invalid(message)) => {
             let keys = state.services.ssh_keys.list_user_keys(&user).await?;
             let page = SshKeysPage::new(page, &keys, test_command(&state)).rejected(form, FormError::from_message(&message));
@@ -137,13 +157,26 @@ pub async fn add_deploy_key(
     viewer: Viewer,
     page: Page,
     Path((owner, repo)): Path<(String, String)>,
+    jar: CookieJar,
+    Https(https): Https,
     Form(input): Form<KeyFormInput>,
 ) -> WebResult<Response> {
     let loaded = load_for_admin(&state, &viewer, &owner, &repo).await?;
+    let session = crate::middleware::session_token(&jar).map(|token| token.encode()).unwrap_or_default();
+    let password = input.current_password.clone();
     let form = input.into_form();
+    // Adding a deploy key is a credential change: it needs a recent proof of identity.
+    let jar = match sudo::confirm(&state, jar, https, &session, &user, password).await {
+        Ok(jar) => jar,
+        Err(ServiceError::Invalid(message)) => {
+            let page = deploy_keys_page(&state, &loaded, page).await?.rejected(form, FormError::from_message(&message));
+            return Ok((StatusCode::UNPROCESSABLE_ENTITY, page).into_response());
+        }
+        Err(other) => return Err(other.into()),
+    };
     let request = AddDeployKey { title: form.title.clone(), key: form.key.clone(), allow_write: form.allow_write };
     match state.services.ssh_keys.add_deploy_key(&user, &loaded.ctx, request).await {
-        Ok(_) => Ok(Redirect::to(&format!("{}/settings/keys", loaded.urls.home())).into_response()),
+        Ok(_) => Ok((jar, Redirect::to(&format!("{}/settings/keys", loaded.urls.home()))).into_response()),
         Err(ServiceError::Invalid(message)) => {
             let page = deploy_keys_page(&state, &loaded, page).await?.rejected(form, FormError::from_message(&message));
             Ok((StatusCode::UNPROCESSABLE_ENTITY, page).into_response())

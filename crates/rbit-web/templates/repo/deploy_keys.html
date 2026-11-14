@@ -22,6 +22,9 @@
       <label class="label mt-5" for="key-value">{% call ui::localized(rbit_localization::RepoSettingsLabel::Key.text(page.locale)) %}{% endcall %}</label>
       <textarea class="input h-32 resize-y py-2 font-mono text-xs sm:h-28" dir="ltr" id="key-value" name="key" rows="4" placeholder="ssh-ed25519 AAAA… deploy@server" autocomplete="off" autocapitalize="none" spellcheck="false" required>{{ form.key }}</textarea>
       <p class="hint">{% call ui::localized(rbit_localization::RepoSettingsLabel::KeyHint.text(page.locale)) %}{% endcall %}</p>
+    <label class="label mt-5" for="current-password">{% call ui::localized(rbit_localization::RepoSettingsLabel::CurrentPassword.text(page.locale)) %}{% endcall %}</label>
+    <input class="input sm:max-w-60" id="current-password" name="current_password" type="password" autocomplete="current-password">
+    <p class="hint">{% call ui::localized(rbit_localization::RepoSettingsLabel::PasswordHint.text(page.locale)) %}{% endcall %}</p>
 
       <label class="mt-5 flex cursor-pointer items-start gap-3">
         <input type="checkbox" name="allow_write" value="on" class="mt-1 accent-(--ink)" {% if form.allow_write %}checked{% endif %}>

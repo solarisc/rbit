@@ -10,8 +10,16 @@ use axum_extra::extract::{
     CookieJar,
     cookie::{Cookie, SameSite},
 };
-use rbit_core::Timestamp;
+use rbit_core::{Timestamp, User};
+use rbit_services::ServiceError;
 use sha2::{Digest, Sha256};
+
+use crate::AppState;
+
+/// Refusal when a credential change arrives without a password and without a fresh stamp.
+const REAUTH_REQUIRED: &str = "confirm your current password to add credentials";
+/// Refusal when the password given for a credential change is wrong.
+const WRONG_PASSWORD: &str = "the password is wrong";
 
 /// The cookie holding the stamp.
 pub const COOKIE: &str = "rbit_sudo";
@@ -52,6 +60,24 @@ pub fn is_fresh(jar: &CookieJar, session: &str, now: i64) -> bool {
     }
     let expected = digest(session, issued);
     given.len() == expected.len() && given.bytes().zip(expected.bytes()).fold(0_u8, |acc, (a, b)| acc | (a ^ b)) == 0
+}
+
+/// Lets a credential change through. A fresh stamp passes. Otherwise `password`, the account's
+/// current password, is checked the way sign-in checks it, and a correct one stamps the window
+/// again. Refusals are `ServiceError::Invalid` with the text the form shows.
+pub async fn confirm(state: &AppState, jar: CookieJar, secure: bool, session: &str, user: &User, password: String) -> Result<CookieJar, ServiceError> {
+    if is_fresh(&jar, session, now()) {
+        return Ok(jar);
+    }
+    if password.is_empty() {
+        return Err(ServiceError::Invalid(REAUTH_REQUIRED.to_owned()));
+    }
+    let login = user.name().to_string();
+    match state.services.accounts.authenticate(&login, password).await {
+        Ok(account) if account.id() == user.id() => Ok(issue(jar, secure, session, now())),
+        Ok(_) | Err(ServiceError::InvalidCredentials) => Err(ServiceError::Invalid(WRONG_PASSWORD.to_owned())),
+        Err(error) => Err(error),
+    }
 }
 
 /// The current time in whole seconds, for the window checks.
