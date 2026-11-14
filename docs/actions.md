@@ -520,7 +520,10 @@ before every answer. A malformed query (`timeout=abc`) answers 422 with the usua
 - The `workflow_run` payload has the run's `head_branch`, `head_sha`, `conclusion` and
   repository, but no `head_repository` or `head_commit`.
 - Events other than those under [Triggers](#triggers) (`release`, `issues`,
-  `pull_request_target`, …) are accepted in `on:` and never start a run.
+  `pull_request_target`, …) are accepted in `on:` and never start a run. rbit says so: the
+  workflow's page shows "release does not start runs on rbit" for each such event, `rbit
+  workflow list` prints it under the workflow (with `--json`, in its `warnings` array as
+  `{code: "unsupported_event", message}`), and the workflows API carries the same `warnings`.
 - `permissions:` scopes other than `contents`, `issues` and `pull-requests` are accepted and
   have no effect: there is no OIDC token (`id-token: write`), for instance.
 - There is no Checks API (`check-runs`, `check-suites`): actions that report through it, such

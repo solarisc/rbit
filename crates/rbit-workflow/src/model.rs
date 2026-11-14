@@ -21,6 +21,6 @@ pub use self::events::{
     WorkflowRunFilters, WorkflowRunType,
 };
 pub use self::jobs::{Concurrency, Container, EnvironmentRef, Job, Matrix, Permission, Permissions, Service, Shell, Step, Strategy};
-pub use self::workflow::{On, Workflow};
+pub use self::workflow::{UNSUPPORTED_EVENT, On, Warning, Workflow};
 
 pub use crate::spec::{ActionSource, ActionStep, Builtin, BuiltinKind, Env, RegistryCredentials, RunDefaults, StepAction};

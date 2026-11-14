@@ -159,6 +159,9 @@ pub struct RunsPage {
     // Actions: disabled workflows.
     /// The selected workflow is disabled: it starts no run.
     pub disabled: bool,
+    /// Warnings about the selected workflow's file, localized: `on:` events it names that rbit
+    /// never starts runs for.
+    pub unsupported_events: Vec<String>,
     /// Where writers disable or enable the selected workflow.
     pub switch_url: Option<String>,
     /// How often the list refreshes itself (an htmx trigger), when it does.

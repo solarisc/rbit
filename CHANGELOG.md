@@ -31,6 +31,13 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the runs in progress, so the run finishes instead of staying queued. A waiting job's
   `ahead` count follows the same order.
 
+### Actions
+
+- Warn about `on:` events that never start a run on rbit (`release`, `issues`,
+  `pull_request_target`, …). The workflow page, `rbit workflow list` (human and `--json`) and
+  the workflows API (`warnings`, with code `unsupported_event`) report them; the file still
+  runs for the events rbit does support.
+
 ## [0.2.2] - 2026-11-13
 
 ### Dependency maintenance

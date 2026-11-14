@@ -365,7 +365,7 @@ async fn dispatch(command: ClientCommand) -> anyhow::Result<i32> {
         }
         ClientCommand::Workflow { command, target } => {
             let (api, repo) = connect(&target, true)?;
-            workflows(&api, &repo.expect("a repository"), command).await
+            workflows(&api, &repo.expect("a repository"), command, &target.output).await
         }
         ClientCommand::Artifact { command, target } => {
             let (api, repo) = connect(&target, true)?;
@@ -612,12 +612,19 @@ async fn unpack(api: &Api, repo: &Repo, artifact: &Value, target: &std::path::Pa
     Ok(())
 }
 
-async fn workflows(api: &Api, repo: &Repo, command: WorkflowCommand) -> anyhow::Result<i32> {
+async fn workflows(api: &Api, repo: &Repo, command: WorkflowCommand, output: &Output) -> anyhow::Result<i32> {
     match command {
         WorkflowCommand::List => {
             let listed = api.get(&actions(repo, "workflows")).await?;
-            for workflow in listed["workflows"].as_array().into_iter().flatten() {
-                println!("{:<30} {:<40} {}", clip(text(workflow, "name"), 30), text(workflow, "path"), text(workflow, "state"));
+            if output.json {
+                agent::print("rbit.workflows/1", workflow_listing(&listed));
+            } else {
+                for workflow in listed["workflows"].as_array().into_iter().flatten() {
+                    println!("{:<30} {:<40} {}", clip(text(workflow, "name"), 30), text(workflow, "path"), text(workflow, "state"));
+                    for warning in workflow["warnings"].as_array().into_iter().flatten() {
+                        println!("  warning: {}", text(warning, "message"));
+                    }
+                }
             }
         }
         WorkflowCommand::Run { workflow, reference, inputs } => {
@@ -640,6 +647,12 @@ async fn workflows(api: &Api, repo: &Repo, command: WorkflowCommand) -> anyhow::
         }
     }
     Ok(0)
+}
+
+/// The body of `rbit workflow list --json` (after `schema`): the API's workflows, each with
+/// its `warnings`, an array of `{code, message}`.
+fn workflow_listing(listed: &Value) -> Value {
+    json!({ "workflows": listed["workflows"].as_array().cloned().unwrap_or_default() })
 }
 
 async fn artifacts(api: &Api, repo: &Repo, command: ArtifactCommand) -> anyhow::Result<i32> {
@@ -754,6 +767,22 @@ async fn raw_api(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn workflow_list_json_carries_each_workflows_warnings() {
+        let warning = json!({ "code": "unsupported_event", "message": "release does not start runs on rbit" });
+        let release = json!({
+            "id": "release.yml",
+            "name": "Release",
+            "path": ".rbit/workflows/release.yml",
+            "state": "active",
+            "warnings": [warning],
+        });
+        let ci = json!({ "id": "ci.yml", "name": "CI", "path": ".rbit/workflows/ci.yml", "state": "active", "warnings": [] });
+        let listed = json!({ "total_count": 2, "workflows": [release, ci] });
+        assert_eq!(workflow_listing(&listed), json!({ "workflows": [release, ci] }));
+        assert_eq!(workflow_listing(&json!({})), json!({ "workflows": [] }));
+    }
 
     #[test]
     fn an_artifact_never_unpacks_into_a_git_directory() {

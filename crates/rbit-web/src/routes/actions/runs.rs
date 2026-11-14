@@ -127,11 +127,21 @@ async fn runs_page(
         Some(file) => Some(known.iter().find(|(path, _)| workflow_file(path) == file).ok_or(WebError::NotFound)?.clone()),
         None => None,
     };
-    // Actions: disabled workflows.
-    let disabled = match &selected {
-        Some((path, _)) => actions.workflow_state(&loaded.ctx, path).await?.disabled,
-        None => false,
+    // Actions: disabled workflows, and the warnings about the selected workflow's file.
+    let (disabled, warnings) = match &selected {
+        Some((path, _)) => {
+            let state = actions.workflow_state(&loaded.ctx, path).await?;
+            (state.disabled, state.warnings)
+        }
+        None => (false, Vec::new()),
     };
+    let catalog = rbit_localization::Catalog::new(page.locale);
+    let unsupported_events: Vec<String> = warnings
+        .iter()
+        .map(|warning| {
+            catalog.localized(rbit_localization::ActionsMessage::UnsupportedEvent { event: &warning.subject }).as_str().to_owned()
+        })
+        .collect();
     let switch_url =
         selected.as_ref().filter(|_| loaded.ctx.can_write_content()).map(|(path, _)| format!("{}/switch", urls.workflow(path)));
     let dispatch = match &selected {
@@ -191,6 +201,7 @@ async fn runs_page(
         next_url,
         dispatch,
         disabled,
+        unsupported_events,
         switch_url,
         self_url,
     })

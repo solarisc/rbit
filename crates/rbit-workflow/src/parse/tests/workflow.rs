@@ -80,6 +80,25 @@ fn short_forms_of_on() {
     assert!(workflow.on.push.is_some() && workflow.on.pull_request.as_ref().unwrap().types.is_none());
 }
 
+// Actions: events rbit never starts runs for.
+#[test]
+fn unsupported_events_are_warnings_and_supported_ones_are_not() {
+    use crate::model::{UNSUPPORTED_EVENT, Warning};
+    let job = "jobs: {a: {runs-on: x, steps: [{run: x}]}}\n";
+    let warnings = |on: &str| parse_ok(&format!("{on}\n{job}")).warnings();
+    let warning = |subject: &str| Warning { code: UNSUPPORTED_EVENT, subject: subject.to_owned() };
+
+    assert_eq!(warnings("on: release"), [warning("release")]);
+    assert_eq!(warnings("on: [push, pull_request_target]"), [warning("pull_request_target")]);
+    assert_eq!(warnings("on: {push: {}, issues: {types: [opened]}}"), [warning("issues")]);
+    assert_eq!(warning("release").message(), "release does not start runs on rbit");
+    // Every event rbit starts runs for is silent, in its short and its long form.
+    assert!(warnings("on: [push, pull_request, workflow_dispatch]").is_empty());
+    assert!(warnings("on: {schedule: [{cron: '0 3 * * 1'}], workflow_call: {}}").is_empty());
+    assert!(warnings("on:\n  workflow_run: {workflows: [CI]}\n  repository_dispatch: {}").is_empty());
+    assert!(warnings("on: {push: {}, pull_request: {}}").is_empty());
+}
+
 #[test]
 fn permissions_forms() {
     let job = |permissions: &str| {

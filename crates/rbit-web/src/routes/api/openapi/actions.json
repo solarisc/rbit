@@ -4539,6 +4539,29 @@
           "badge_url": {
             "type": "string",
             "format": "uri"
+          },
+          "warnings": {
+            "type": "array",
+            "description": "Problems with the workflow file that rbit reports without refusing it. `unsupported_event`: the file names an `on:` event that never starts a run on rbit.",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "message"
+              ],
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "enum": [
+                    "unsupported_event"
+                  ]
+                },
+                "message": {
+                  "type": "string",
+                  "description": "The English message, such as `release does not start runs on rbit`."
+                }
+              }
+            }
           }
         }
       },

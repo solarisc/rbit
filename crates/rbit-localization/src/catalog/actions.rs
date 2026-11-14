@@ -6,6 +6,7 @@ mod display;
 pub use display::ActionsDisplay;
 const RERUN_PREFIX: &str = "Re-run ";
 const SUMMARY_SUFFIX: &str = " summary";
+const UNSUPPORTED_EVENT_SUFFIX: &str = " does not start runs on rbit";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ActionsMessage<'a> {
@@ -25,6 +26,8 @@ pub enum ActionsMessage<'a> {
     Expires,
     RerunJob { name: &'a str },
     Summary { job: &'a str },
+    /// "release does not start runs on rbit": a workflow names an `on:` event rbit never starts a run for.
+    UnsupportedEvent { event: &'a str },
 }
 
 impl ActionsMessage<'_> {
@@ -46,6 +49,7 @@ impl ActionsMessage<'_> {
             Self::Expires => "actions.run.expires",
             Self::RerunJob { .. } => "actions.job.rerun",
             Self::Summary { .. } => "actions.job.summary",
+            Self::UnsupportedEvent { .. } => "actions.workflow.unsupported-event",
         }
     }
 
@@ -66,7 +70,7 @@ impl ActionsMessage<'_> {
             Self::RerunAll => "Re-run all",
             Self::DownloadTar => "Download as tar.gz",
             Self::Expires => "expires",
-            Self::RerunJob { .. } | Self::Summary { .. } => return None,
+            Self::RerunJob { .. } | Self::Summary { .. } | Self::UnsupportedEvent { .. } => return None,
         })
     }
 }
@@ -85,6 +89,10 @@ impl MessageFamily for ActionsMessage<'_> {
             Self::Summary { job } => {
                 text.argument(job);
                 text.literal(SUMMARY_SUFFIX);
+            }
+            Self::UnsupportedEvent { event } => {
+                text.argument(event);
+                text.literal(UNSUPPORTED_EVENT_SUFFIX);
             }
             _ => text.literal(self.english_label().unwrap_or_default()),
         }
@@ -117,5 +125,8 @@ mod tests {
             assert!(catalog.localized(ActionsMessage::Summary { job: "build" }).as_str().contains("build"));
         }
         assert_eq!(Catalog::new(Locale::English).localized(ActionsMessage::RunDetails).as_str(), "Run details");
+        let unsupported = ActionsMessage::UnsupportedEvent { event: "release" };
+        assert_eq!(Catalog::new(Locale::English).localized(unsupported).as_str(), "release does not start runs on rbit");
+        assert_eq!(unsupported.id(), "actions.workflow.unsupported-event");
     }
 }

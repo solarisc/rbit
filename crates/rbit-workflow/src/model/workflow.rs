@@ -28,6 +28,31 @@ impl Workflow {
     pub fn job(&self, id: &str) -> Option<&Job> {
         self.jobs.iter().find(|job| job.id == id)
     }
+
+    /// Warnings about `on:` events that the file names but rbit never starts a run for. The
+    /// list is derived from the same parse that decides what starts runs, so it cannot drift.
+    pub fn warnings(&self) -> Vec<Warning> {
+        self.on.other.iter().map(|event| Warning { code: UNSUPPORTED_EVENT, subject: event.clone() }).collect()
+    }
+}
+
+/// The code of a warning: an `on:` event that never starts a run on rbit.
+pub const UNSUPPORTED_EVENT: &str = "unsupported_event";
+
+/// A problem in a workflow file that does not stop the file from parsing.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Warning {
+    /// A stable identifier of the kind of problem, such as [`UNSUPPORTED_EVENT`].
+    pub code: &'static str,
+    /// What the warning is about, as written in the file (the event's name).
+    pub subject: String,
+}
+
+impl Warning {
+    /// The English message for API clients and the CLI; the web UI localizes by `code`.
+    pub fn message(&self) -> String {
+        format!("{} does not start runs on rbit", self.subject)
+    }
 }
 
 /// The events a workflow runs on (`on:`).

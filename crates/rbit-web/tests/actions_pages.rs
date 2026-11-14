@@ -370,6 +370,34 @@ async fn writers_disable_and_enable_a_workflow_from_its_page() {
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
+// Actions: events rbit never starts runs for.
+#[tokio::test]
+async fn workflows_warn_about_events_that_never_start_runs() {
+    let fixture = Fixture::new().await;
+    fixture.database.actions_settings().set_enabled(fixture.repo_id().await, true, Timestamp::now()).await.unwrap();
+    let repo = fixture.services.repositories.open(Some(&fixture.alice), "alice", "rocket").await.unwrap();
+    let job = "jobs: {a: {runs-on: x, steps: [{run: x}]}}\n";
+    let (release, ci) = (format!("on: [push, release]\n{job}"), format!("on: push\n{job}"));
+    push(&repo, &[(".rbit/workflows/release.yml", release.as_str()), (".rbit/workflows/ci.yml", ci.as_str())]);
+
+    let page = fixture.page("/alice/rocket/actions/workflows/release.yml", &fixture.owner).await;
+    assert!(page.contains("release does not start runs on rbit"), "{page}");
+    let page = fixture.page("/alice/rocket/actions/workflows/ci.yml", &fixture.owner).await;
+    assert!(!page.contains("does not start runs on rbit"), "a supported workflow has no warning");
+
+    let (status, _, body) = fixture.get("/api/v1/repos/alice/rocket/actions/workflows", &fixture.owner, None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let listed: serde_json::Value = serde_json::from_str(&body).unwrap();
+    let warnings_of = |id: &str| {
+        listed["workflows"].as_array().unwrap().iter().find(|workflow| workflow["id"] == id).unwrap()["warnings"].clone()
+    };
+    assert_eq!(
+        warnings_of("release.yml"),
+        serde_json::json!([{ "code": "unsupported_event", "message": "release does not start runs on rbit" }])
+    );
+    assert_eq!(warnings_of("ci.yml"), serde_json::json!([]));
+}
+
 // Actions: workflow status badges.
 #[tokio::test]
 async fn workflow_badges_show_the_newest_finished_run_of_a_branch() {
