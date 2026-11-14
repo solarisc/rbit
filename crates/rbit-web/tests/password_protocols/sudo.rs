@@ -61,38 +61,42 @@ fn key_form(extra: &str) -> String {
 #[tokio::test]
 async fn a_fresh_proof_lets_a_token_be_created_without_the_password() {
     let fixture = Fixture::new().await;
+    let before = fixture.services.tokens.list(&fixture.user).await.unwrap().len();
     let session = fixture.session().await;
     let stamp = fixture.services.sudo.stamp(&session.encode(), now()).await.unwrap();
     let (status, _, body) = create_token(&fixture, &session.encode(), Some(&stamp), TOKEN_FORM).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(body.contains("rbit_"), "the new secret is shown once");
-    assert_eq!(fixture.services.tokens.list(&fixture.user).await.unwrap().len(), 1);
+    assert_eq!(fixture.services.tokens.list(&fixture.user).await.unwrap().len(), before + 1);
 }
 
 #[tokio::test]
 async fn a_stale_proof_without_a_password_creates_nothing() {
     let fixture = Fixture::new().await;
+    let before = fixture.services.tokens.list(&fixture.user).await.unwrap().len();
     let session = fixture.session().await;
     let (status, _, body) = create_token(&fixture, &session.encode(), None, TOKEN_FORM).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-    assert!(body.contains("confirm your current password"), "the form asks for the password");
-    assert_eq!(fixture.services.tokens.list(&fixture.user).await.unwrap().len(), 0);
+    assert!(body.contains("Confirm your current password"), "the form asks for the password");
+    assert_eq!(fixture.services.tokens.list(&fixture.user).await.unwrap().len(), before);
 }
 
 #[tokio::test]
 async fn the_correct_password_creates_the_token_and_renews_the_window() {
     let fixture = Fixture::new().await;
+    let before = fixture.services.tokens.list(&fixture.user).await.unwrap().len();
     let session = fixture.session().await;
     let form = format!("{TOKEN_FORM}&current_password={PASSWORD}");
     let (status, headers, body) = create_token(&fixture, &session.encode(), None, &form).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(set_cookie(&headers, STAMP).is_some(), "the window is renewed");
-    assert_eq!(fixture.services.tokens.list(&fixture.user).await.unwrap().len(), 1);
+    assert_eq!(fixture.services.tokens.list(&fixture.user).await.unwrap().len(), before + 1);
 }
 
 #[tokio::test]
 async fn a_wrong_password_is_refused_and_then_throttled_even_when_correct() {
-    let fixture = Fixture::new().await;
+    let fixture = Fixture::new_with_rate_limits(true).await;
+    let before = fixture.services.tokens.list(&fixture.user).await.unwrap().len();
     let session = fixture.session().await;
     let wrong = format!("{TOKEN_FORM}&current_password=wrong-guess");
     let mut throttled = false;
@@ -108,23 +112,25 @@ async fn a_wrong_password_is_refused_and_then_throttled_even_when_correct() {
     let correct = format!("{TOKEN_FORM}&current_password={PASSWORD}");
     let (status, _, _) = create_token(&fixture, &session.encode(), None, &correct).await;
     assert_eq!(status, StatusCode::TOO_MANY_REQUESTS, "the budget refuses the owner too, until it recovers");
-    assert_eq!(fixture.services.tokens.list(&fixture.user).await.unwrap().len(), 0);
+    assert_eq!(fixture.services.tokens.list(&fixture.user).await.unwrap().len(), before);
 }
 
 #[tokio::test]
 async fn a_proof_from_another_session_does_not_count() {
     let fixture = Fixture::new().await;
+    let before = fixture.services.tokens.list(&fixture.user).await.unwrap().len();
     let first = fixture.session().await;
     let second = fixture.session().await;
     let stamp = fixture.services.sudo.stamp(&first.encode(), now()).await.unwrap();
     let (status, _, _) = create_token(&fixture, &second.encode(), Some(&stamp), TOKEN_FORM).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-    assert_eq!(fixture.services.tokens.list(&fixture.user).await.unwrap().len(), 0);
+    assert_eq!(fixture.services.tokens.list(&fixture.user).await.unwrap().len(), before);
 }
 
 #[tokio::test]
 async fn knowing_the_session_token_is_not_enough_to_make_a_proof() {
     let fixture = Fixture::new().await;
+    let before = fixture.services.tokens.list(&fixture.user).await.unwrap().len();
     let session = fixture.session().await;
     let now = now();
     // What a first draft stamped: an unkeyed digest over the token and the time. It is refused.
@@ -138,19 +144,20 @@ async fn knowing_the_session_token_is_not_enough_to_make_a_proof() {
         let (status, _, _) = create_token(&fixture, &session.encode(), Some(&forged), TOKEN_FORM).await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "forged proof {forged} must not count");
     }
-    assert_eq!(fixture.services.tokens.list(&fixture.user).await.unwrap().len(), 0);
+    assert_eq!(fixture.services.tokens.list(&fixture.user).await.unwrap().len(), before);
 }
 
 #[tokio::test]
 async fn a_real_sign_in_stamps_the_window_that_lets_a_token_be_created() {
     let fixture = Fixture::new().await;
+    let before = fixture.services.tokens.list(&fixture.user).await.unwrap().len();
     let (status, headers, body) = post(&fixture, "", "/login", LOGIN_FORM).await;
     assert!(status.is_redirection(), "sign-in redirects: {status} {body}");
     let session = set_cookie(&headers, SESSION).expect("sign-in sets the session");
     let stamp = set_cookie(&headers, STAMP).expect("sign-in stamps the window");
     let (status, _, body) = create_token(&fixture, &session, Some(&stamp), TOKEN_FORM).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert_eq!(fixture.services.tokens.list(&fixture.user).await.unwrap().len(), 1);
+    assert_eq!(fixture.services.tokens.list(&fixture.user).await.unwrap().len(), before + 1);
 }
 
 #[tokio::test]

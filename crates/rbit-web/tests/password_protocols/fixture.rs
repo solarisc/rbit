@@ -36,10 +36,15 @@ pub(super) struct Fixture {
 
 impl Fixture {
     pub(super) async fn new() -> Self {
+        Self::new_with_rate_limits(false).await
+    }
+
+    /// A fixture whose throttles are on or off as `rate_limit` says.
+    pub(super) async fn new_with_rate_limits(rate_limit: bool) -> Self {
         let directory = tempfile::tempdir().unwrap();
         let mut config = Config::default();
         config.storage.data_dir = directory.path().join("data");
-        config.security.rate_limit = false;
+        config.security.rate_limit = rate_limit;
         config.security.max_password_jobs = 1;
         std::fs::create_dir_all(config.storage.repositories_dir()).unwrap();
         let database = Database::open(&config.storage.sqlite_path()).await.unwrap();
