@@ -196,6 +196,37 @@ async fn an_agent_finds_the_runs_of_its_commit_and_reads_codes_not_prose() {
         (quiet["ci"]["state"].as_str(), quiet["ci"]["reason"].as_str()),
         (Some("none_expected"), Some("the commit has no workflow files"))
     );
+
+    // Only workflows for events rbit never starts runs for: the reason names that, not filters.
+    git.ok(&sample.dir, &["checkout", "--quiet", "-b", "release-only", "main"]);
+    git.ok(&sample.dir, &["rm", "--quiet", "-r", ".rbit"]);
+    git.commit_file(&sample.dir, ".rbit/workflows/release.yml", "on: release\njobs: {a: {runs-on: x, steps: [{run: x}]}}\n");
+    git.ok(&sample.dir, &["push", "--quiet", &url, "release-only"]);
+    let (_, unsupported) = agent.get("repos/alice/rocket/agent/status?branch=release-only").await;
+    assert_eq!(
+        (unsupported["ci"]["state"].as_str(), unsupported["ci"]["reason"].as_str()),
+        (
+            Some("none_expected"),
+            Some("the workflows only name events rbit never starts runs for (see each workflow's warnings)")
+        ),
+        "{unsupported}"
+    );
+    // A workflow that does listen for pushes, but whose branch filter leaves this commit out, is
+    // still a filter's doing, even with a release trigger beside it.
+    git.ok(&sample.dir, &["checkout", "--quiet", "-b", "mixed-filtered", "main"]);
+    git.ok(&sample.dir, &["rm", "--quiet", "-r", ".rbit"]);
+    git.commit_file(
+        &sample.dir,
+        ".rbit/workflows/mixed.yml",
+        "on:\n  push:\n    branches: [main]\n  release: {}\njobs: {a: {runs-on: x, steps: [{run: x}]}}\n",
+    );
+    git.ok(&sample.dir, &["push", "--quiet", &url, "mixed-filtered"]);
+    let (_, mixed) = agent.get("repos/alice/rocket/agent/status?branch=mixed-filtered").await;
+    assert_eq!(
+        (mixed["ci"]["state"].as_str(), mixed["ci"]["reason"].as_str()),
+        (Some("none_expected"), Some("the workflows' `branches` or `paths` filters leave this commit out")),
+        "{mixed}"
+    );
     // Nothing can change a settled commit, so a watch with its current cursor answers at once
     // rather than after its timeout.
     let quiet_sha = quiet["head"]["sha"].as_str().unwrap().to_owned();

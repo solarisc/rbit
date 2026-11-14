@@ -436,10 +436,20 @@ fn evaluate_push(
         let group = GroupContext { reference: update.name.clone(), sha: after.clone(), ..planning.clone() };
         let mut loader = CallLoader::new(handle, service, caller, reader, after, limits, deadline);
         let candidates = candidates(files, &event, &mut changed, &group, limits, deadline, &mut loader);
-        let skipped = candidates.is_empty().then_some("filtered");
+        let skipped = candidates.is_empty().then(|| no_run_reason(files));
         outcomes.push(PushOutcome { update: update.clone(), head, candidates, workflows: files.len(), skipped });
     }
     outcomes
+}
+
+/// Why no workflow started for a push that no trigger accepted: `unsupported_events` when no
+/// file listens for pushes and some name an event rbit never starts runs for, else `filtered`
+/// (a `branches`, `paths` or other filter left the commit out).
+fn no_run_reason(files: &[WorkflowFile]) -> &'static str {
+    let parsed = || files.iter().filter_map(|file| file.parsed.as_ref().ok());
+    let listens_for_push = parsed().any(|workflow| workflow.on.push.is_some());
+    let names_unsupported = parsed().any(|workflow| !workflow.warnings().is_empty());
+    if !listens_for_push && names_unsupported { "unsupported_events" } else { "filtered" }
 }
 
 /// Blocking: the paths changed from `base` to `head`, with both sides of renames; `None`

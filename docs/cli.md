@@ -83,7 +83,8 @@ One call for the state of a branch (the current one by default): its head on the
 whether your checkout's `HEAD` is that commit, how far it is ahead of and behind its base,
 the CI of exactly that commit, the base's CI, the open pull request from the branch, the
 issue a `feature/<n>-…` branch works on, and `next`, the command worth running now. The CI
-`state` is one of `none_expected` (with the reason: no workflow files, Actions off),
+`state` is one of `none_expected` (with the reason: no workflow files, Actions off, or workflows
+that name only events rbit never starts runs for),
 `not_started`, `queued`, `running`, `failure` (as soon as one job failed, even while others
 run), `indeterminate` (nobody can say why the jobs failed: a lost runner, a log cut short),
 `cancelled` and `success`, so "nothing yet" is never confused with "nothing expected".

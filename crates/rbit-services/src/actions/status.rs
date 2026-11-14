@@ -136,6 +136,9 @@ impl ActionsService {
                 _ if !enabled => ("none_expected", "Actions is off for this repository"),
                 None if !known => ("not_started", "the commit is not in this repository (yet)"),
                 Some("filtered") => ("none_expected", "the workflows' `branches` or `paths` filters leave this commit out"),
+                Some("unsupported_events") => {
+                    ("none_expected", "the workflows only name events rbit never starts runs for (see each workflow's warnings)")
+                }
                 Some("skip_marker") => ("none_expected", "the head commit asks to skip CI"),
                 Some("no_jobs") => ("none_expected", "no job of the workflows is named by the commit's Rbit-CI-Jobs trailer"),
                 Some("too_many_refs") => ("none_expected", "its push updated more than 16 branches and tags; only the first 16 start runs"),
