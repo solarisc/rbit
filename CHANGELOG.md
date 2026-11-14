@@ -31,6 +31,12 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the runs in progress, so the run finishes instead of staying queued. A waiting job's
   `ahead` count follows the same order.
 
+### Security hardening
+
+- Git over HTTP password guesses are throttled per client network, typed login and account, as
+  web sign-in already was. Three wrong guesses from one network no longer lock the owner out of
+  Git over HTTP from another network, and a login's alias (username or email) shares its budget.
+
 ## [0.2.2] - 2026-11-13
 
 ### Dependency maintenance
