@@ -136,11 +136,9 @@ async fn runs_page(
         None => (false, Vec::new()),
     };
     let catalog = rbit_localization::Catalog::new(page.locale);
-    let unsupported_events: Vec<String> = warnings
+    let unsupported_events = warnings
         .iter()
-        .map(|warning| {
-            catalog.localized(rbit_localization::ActionsMessage::UnsupportedEvent { event: &warning.subject }).as_str().to_owned()
-        })
+        .map(|warning| catalog.localized(rbit_localization::ActionsMessage::UnsupportedEvent { event: &warning.subject }))
         .collect();
     let switch_url =
         selected.as_ref().filter(|_| loaded.ctx.can_write_content()).map(|(path, _)| format!("{}/switch", urls.workflow(path)));

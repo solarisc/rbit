@@ -99,6 +99,47 @@ fn unsupported_events_are_warnings_and_supported_ones_are_not() {
     assert!(warnings("on: {push: {}, pull_request: {}}").is_empty());
 }
 
+// Actions: the events that start runs are exactly the ones the parser knows.
+#[test]
+fn every_event_that_starts_runs_is_known_to_the_parser() {
+    use crate::model::{ActivityType, WorkflowRunType};
+    use crate::trigger::Event;
+
+    /// The `on:` name of each event `trigger::matches` acts on. The match is exhaustive, so a
+    /// new event fails to compile here until it is named and its parse is checked below.
+    fn on_name(event: &Event<'_>) -> &'static str {
+        match event {
+            Event::Push { .. } => "push",
+            Event::PullRequest { .. } => "pull_request",
+            Event::Dispatch => "workflow_dispatch",
+            Event::Schedule { .. } => "schedule",
+            Event::WorkflowRun { .. } => "workflow_run",
+            Event::RepositoryDispatch { .. } => "repository_dispatch",
+        }
+    }
+
+    let action = ActivityType::Opened;
+    let samples = [
+        Event::Push { reference: "refs/heads/main", deleted: false },
+        Event::PullRequest { action: &action, base_branch: "main" },
+        Event::Dispatch,
+        Event::Schedule { cron: "0 3 * * 1" },
+        Event::WorkflowRun { workflow: "CI", action: WorkflowRunType::Completed, branch: None },
+        Event::RepositoryDispatch { event_type: "deploy" },
+    ];
+    let job = "jobs: {a: {runs-on: x, steps: [{run: x}]}}\n";
+    for sample in &samples {
+        let name = on_name(sample);
+        let config = match name {
+            "schedule" => "[{cron: '0 3 * * 1'}]",
+            "workflow_run" => "{workflows: [CI]}",
+            _ => "{}",
+        };
+        let workflow = parse_ok(&format!("on:\n  {name}: {config}\n{job}"));
+        assert!(workflow.warnings().is_empty(), "{name} starts runs on rbit and must not warn");
+    }
+}
+
 #[test]
 fn permissions_forms() {
     let job = |permissions: &str| {

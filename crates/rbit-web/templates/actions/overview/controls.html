@@ -20,7 +20,7 @@
 {% endif %}
 
 {% for warning in unsupported_events %}
-<p class="mb-4 rounded-(--radius-ui) border border-line bg-subtle px-3 py-3 text-[13px] text-ink-muted" role="note"><bdi>{{ warning }}</bdi></p>
+<p class="mb-4 rounded-(--radius-ui) border border-line bg-subtle px-3 py-3 text-[13px] text-ink-muted" role="note">{% call ui::localized(warning) %}{% endcall %}</p>
 {% endfor %}
 
 {% if let Some(form) = dispatch %}{% include "actions/dispatch.html" %}{% endif %}

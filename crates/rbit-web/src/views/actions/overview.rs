@@ -161,7 +161,7 @@ pub struct RunsPage {
     pub disabled: bool,
     /// Warnings about the selected workflow's file, localized: `on:` events it names that rbit
     /// never starts runs for.
-    pub unsupported_events: Vec<String>,
+    pub unsupported_events: Vec<rbit_localization::Localized>,
     /// Where writers disable or enable the selected workflow.
     pub switch_url: Option<String>,
     /// How often the list refreshes itself (an htmx trigger), when it does.

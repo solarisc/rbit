@@ -617,7 +617,7 @@ async fn workflows(api: &Api, repo: &Repo, command: WorkflowCommand, output: &Ou
         WorkflowCommand::List => {
             let listed = api.get(&actions(repo, "workflows")).await?;
             if output.json {
-                agent::print("rbit.workflows/1", workflow_listing(&listed));
+                agent::print("rbit.workflows/1", workflow_listing(&listed, &output.fields));
             } else {
                 for workflow in listed["workflows"].as_array().into_iter().flatten() {
                     println!("{:<30} {:<40} {}", clip(text(workflow, "name"), 30), text(workflow, "path"), text(workflow, "state"));
@@ -651,8 +651,9 @@ async fn workflows(api: &Api, repo: &Repo, command: WorkflowCommand, output: &Ou
 
 /// The body of `rbit workflow list --json` (after `schema`): the API's workflows, each with
 /// its `warnings`, an array of `{code, message}`.
-fn workflow_listing(listed: &Value) -> Value {
-    json!({ "workflows": listed["workflows"].as_array().cloned().unwrap_or_default() })
+fn workflow_listing(listed: &Value, fields: &[String]) -> Value {
+    let workflows = listed["workflows"].as_array().cloned().unwrap_or_default();
+    json!({ "workflows": agent::select(workflows, fields) })
 }
 
 async fn artifacts(api: &Api, repo: &Repo, command: ArtifactCommand) -> anyhow::Result<i32> {
@@ -780,8 +781,8 @@ mod tests {
         });
         let ci = json!({ "id": "ci.yml", "name": "CI", "path": ".rbit/workflows/ci.yml", "state": "active", "warnings": [] });
         let listed = json!({ "total_count": 2, "workflows": [release, ci] });
-        assert_eq!(workflow_listing(&listed), json!({ "workflows": [release, ci] }));
-        assert_eq!(workflow_listing(&json!({})), json!({ "workflows": [] }));
+        assert_eq!(workflow_listing(&listed, &[]), json!({ "workflows": [release, ci] }));
+        assert_eq!(workflow_listing(&json!({}), &[]), json!({ "workflows": [] }));
     }
 
     #[test]
