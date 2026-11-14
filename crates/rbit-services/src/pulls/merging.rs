@@ -371,8 +371,9 @@ impl PullService {
     async fn required_for_head<S: ToString>(&self, ctx: &PullContext, required: &[S]) -> Result<Vec<String>, ServiceError> {
         let required: Vec<String> = required.iter().map(ToString::to_string).collect();
         let decision = self.ctx().database.actions_runs().decision(ctx.repo().repo.repo.id, &ctx.pull.head_sha).await?;
-        let left_out =
-            decision.is_some_and(|decision| decision.started == 0 && matches!(decision.reason.as_str(), "filtered" | "skip_marker" | "unsupported_events"));
+        let left_out = decision.is_some_and(|decision| {
+            decision.started == 0 && matches!(decision.reason.as_str(), "filtered" | "skip_marker" | "unsupported_events")
+        });
         Ok(required_after(required, left_out))
     }
 
