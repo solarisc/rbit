@@ -848,8 +848,13 @@ async fn a_public_fork_that_turns_private_stops_feeding_its_pull_request() {
     let private = UpdateRepository { visibility: Visibility::Private, ..Default::default() };
     fixture.services.repo_settings.update(&fork, private).await.unwrap();
     git(&fixture.work, &["checkout", "-q", "feature"]);
-    let secret = commit(&fixture.work, "secret.txt", "private
-", "Secret work");
+    let secret = commit(
+        &fixture.work,
+        "secret.txt",
+        "private
+",
+        "Secret work",
+    );
     git(&fixture.work, &["checkout", "-q", "main"]);
     fixture.push(&fixture.bob, "bob", &["feature"]).await;
 
