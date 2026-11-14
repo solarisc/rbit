@@ -31,6 +31,13 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the runs in progress, so the run finishes instead of staying queued. A waiting job's
   `ahead` count follows the same order.
 
+### Security hardening
+
+- A pull request can no longer be opened from a private fork into a public repository, and a
+  public fork that is made private stops updating its open pull requests (pushes no longer
+  copy its commits into the public repository) and cannot have them reopened. Their commits
+  would otherwise have been readable by anyone who can read only the public repository.
+
 ## [0.2.2] - 2026-11-13
 
 ### Dependency maintenance
