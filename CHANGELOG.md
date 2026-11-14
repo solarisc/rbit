@@ -31,6 +31,14 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the runs in progress, so the run finishes instead of staying queued. A waiting job's
   `ahead` count follows the same order.
 
+### Security hardening
+
+- SSH connection limits count IPv6 clients by their /64, as the HTTP rate limits do, so one
+  host with a whole /64 can no longer open more than `max_connections_per_ip` connections.
+- SSH caps connections that have not authenticated yet: 64 in total and 8 per address (IPv6:
+  per /64). A connection frees its slot when it authenticates; `auth_timeout_seconds` still
+  bounds how long it may stay unauthenticated.
+
 ## [0.2.2] - 2026-11-13
 
 ### Dependency maintenance

@@ -273,7 +273,7 @@ fn bucket_key(key: &str) -> String {
 }
 
 /// `address` as a client's throttle key: an IPv6 address by its /64, others as they are.
-pub(crate) fn client_key(address: &str) -> String {
+pub fn client_key(address: &str) -> String {
     ipv6_network(address).unwrap_or_else(|| address.to_owned())
 }
 
