@@ -2,6 +2,8 @@
 //! or the account's current password. The proof lives server-side; a stolen session cookie alone
 //! cannot make one, and a password guess spends the account's password-check budget.
 
+use std::fmt::Write;
+
 use axum::http::{HeaderMap, Method, StatusCode, header};
 use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use rbit_core::Visibility;
@@ -74,7 +76,7 @@ async fn a_stale_proof_without_a_password_creates_nothing() {
     let (status, _, body) = create_token(&fixture, &session.encode(), None, TOKEN_FORM).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
     assert!(body.contains("confirm your current password"), "the form asks for the password");
-    assert!(fixture.services.tokens.list(&fixture.user).await.unwrap().is_empty());
+    assert_eq!(fixture.services.tokens.list(&fixture.user).await.unwrap().len(), 0);
 }
 
 #[tokio::test]
@@ -106,7 +108,7 @@ async fn a_wrong_password_is_refused_and_then_throttled_even_when_correct() {
     let correct = format!("{TOKEN_FORM}&current_password={PASSWORD}");
     let (status, _, _) = create_token(&fixture, &session.encode(), None, &correct).await;
     assert_eq!(status, StatusCode::TOO_MANY_REQUESTS, "the budget refuses the owner too, until it recovers");
-    assert!(fixture.services.tokens.list(&fixture.user).await.unwrap().is_empty());
+    assert_eq!(fixture.services.tokens.list(&fixture.user).await.unwrap().len(), 0);
 }
 
 #[tokio::test]
@@ -117,7 +119,7 @@ async fn a_proof_from_another_session_does_not_count() {
     let stamp = fixture.services.sudo.stamp(&first.encode(), now()).await.unwrap();
     let (status, _, _) = create_token(&fixture, &second.encode(), Some(&stamp), TOKEN_FORM).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-    assert!(fixture.services.tokens.list(&fixture.user).await.unwrap().is_empty());
+    assert_eq!(fixture.services.tokens.list(&fixture.user).await.unwrap().len(), 0);
 }
 
 #[tokio::test]
@@ -128,14 +130,15 @@ async fn knowing_the_session_token_is_not_enough_to_make_a_proof() {
     // What a first draft stamped: an unkeyed digest over the token and the time. It is refused.
     let unkeyed = Sha256::digest(format!("rbit-sudo-v1\0{}\0{now}", session.encode()).as_bytes());
     let unkeyed = unkeyed.iter().fold(String::new(), |mut hex, byte| {
-        hex.push_str(&format!("{byte:02x}"));
+        // Writing to a String cannot fail.
+        let _ = write!(hex, "{byte:02x}");
         hex
     });
     for forged in [format!("{now}.{unkeyed}"), format!("{now}.{}", "0".repeat(64)), format!("{now}.not-hex")] {
         let (status, _, _) = create_token(&fixture, &session.encode(), Some(&forged), TOKEN_FORM).await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "forged proof {forged} must not count");
     }
-    assert!(fixture.services.tokens.list(&fixture.user).await.unwrap().is_empty());
+    assert_eq!(fixture.services.tokens.list(&fixture.user).await.unwrap().len(), 0);
 }
 
 #[tokio::test]
@@ -156,7 +159,7 @@ async fn a_stale_proof_refuses_an_ssh_key_without_the_password_and_accepts_it_wi
     let session = fixture.session().await;
     let (status, _, _) = post(&fixture, &cookies(&session.encode(), None), "/settings/keys", &key_form("")).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-    assert!(fixture.services.ssh_keys.list_user_keys(&fixture.user).await.unwrap().is_empty());
+    assert_eq!(fixture.services.ssh_keys.list_user_keys(&fixture.user).await.unwrap().len(), 0);
 
     let form = key_form(&format!("&current_password={PASSWORD}"));
     let (status, _, body) = post(&fixture, &cookies(&session.encode(), None), "/settings/keys", &form).await;
@@ -174,7 +177,7 @@ async fn a_stale_proof_refuses_a_deploy_key_without_the_password_and_accepts_it_
     let path = "/keeper/vault/settings/keys";
     let (status, _, _) = post(&fixture, &cookies(&session.encode(), None), path, &key_form("")).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-    assert!(fixture.services.ssh_keys.list_deploy_keys(&repo).await.unwrap().is_empty());
+    assert_eq!(fixture.services.ssh_keys.list_deploy_keys(&repo).await.unwrap().len(), 0);
 
     let form = key_form(&format!("&current_password={PASSWORD}"));
     let (status, _, body) = post(&fixture, &cookies(&session.encode(), None), path, &form).await;
