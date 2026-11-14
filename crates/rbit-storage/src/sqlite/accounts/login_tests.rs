@@ -10,14 +10,14 @@ fn new(name: &str, hash: &str) -> NewUser {
     }
 }
 #[tokio::test]
-async fn principal_login_read_ignores_reclaimed_names_and_uses_one_pk_query() {
+async fn principal_login_read_follows_renames_and_uses_one_pk_query() {
     let (_directory, database) = plans::database().await;
     let store = database.accounts();
     let alice = store.create_user(new("alice", "alice PHC")).await.unwrap();
     let bob = store.create_user(new("bob", "bob PHC")).await.unwrap();
     store.rename(alice.id(), &"renamed".parse().unwrap()).await.unwrap();
-    store.rename(bob.id(), &"alice".parse().unwrap()).await.unwrap();
-    assert_eq!(store.find_login(alice.name().as_str()).await.unwrap().unwrap().user.id(), bob.id());
+    assert!(matches!(store.rename(bob.id(), &"alice".parse().unwrap()).await, Err(StorageError::Conflict("username"))));
+    assert!(store.find_login(alice.name().as_str()).await.unwrap().is_none(), "former names are not login aliases");
     let (found, work) = count_work(store.find_login_by_id(alice.id())).await;
     let found = found.unwrap().unwrap();
     assert_eq!(found.user.id(), alice.id());
