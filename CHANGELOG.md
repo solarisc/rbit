@@ -31,6 +31,12 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   the runs in progress, so the run finishes instead of staying queued. A waiting job's
   `ahead` count follows the same order.
 
+### Security hardening
+
+- Adding a personal access token, an SSH key or a deploy key from the web asks for your current
+  password unless you signed in during the last ten minutes. API calls with a token are not
+  affected.
+
 ## [0.2.2] - 2026-11-13
 
 ### Dependency maintenance
