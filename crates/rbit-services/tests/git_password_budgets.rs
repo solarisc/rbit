@@ -22,6 +22,8 @@ impl Fixture {
         let directory = tempfile::tempdir().unwrap();
         let mut config = Config::default();
         config.storage.data_dir = directory.path().to_path_buf();
+        // The password work budget must match the configured jobs (see password_admission.rs).
+        config.security.max_password_jobs = 1;
         let database = Database::open(&config.storage.sqlite_path()).await.unwrap();
         let kv = KvStore::open(&config.storage.kv_path()).unwrap();
         let passwords = PasswordWork::new(BlockingBudget::new(NonZeroUsize::new(1).unwrap()));
