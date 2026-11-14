@@ -107,7 +107,7 @@ config_fields! {
         "max_connections" => "Max connections",
             "Concurrent connections across all clients; further connections are closed at once.";
         "max_connections_per_ip" => "Max connections per ip",
-            "Concurrent connections from one IP address.";
+            "Concurrent connections from one IP address (IPv6: one /64).";
         "auth_timeout_seconds" => "Auth timeout (seconds)",
             "Seconds a client has to authenticate after connecting.";
         "idle_timeout_seconds" => "Idle timeout (seconds)",

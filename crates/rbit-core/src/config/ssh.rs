@@ -39,7 +39,7 @@ pub struct SshConfig {
     pub host_key_path: Option<PathBuf>,
     /// Concurrent connections across all clients; further connections are closed at once.
     pub max_connections: usize,
-    /// Concurrent connections from one IP address.
+    /// Concurrent connections from one IP address (IPv6: one /64).
     pub max_connections_per_ip: usize,
     /// Seconds a client has to authenticate after connecting.
     pub auth_timeout_seconds: u64,
