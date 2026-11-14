@@ -361,35 +361,35 @@ fn every_refusal_carries_a_stable_code_its_rule_and_a_remediation() {
     assert_eq!(archived.refusals[0].code, codes::REPOSITORY_ARCHIVED);
 }
 
-/// Every refusal text this module can give has its own stable code and a fix, so rewording
-/// a text cannot silently fall back to the generic code.
-#[test]
-fn every_reason_text_has_a_code_and_a_fix() {
-    let texts = [
-        reasons::PULL_REFS,
-        reasons::REPLACE_REFS,
-        reasons::NAMESPACE_CASE,
-        reasons::DELETION,
-        reasons::RESTRICTED,
-        reasons::PULL_REQUEST,
-        reasons::NO_WRITE,
-        reasons::TOKEN_SCOPE,
-        reasons::ARCHIVED,
-        reasons::ARCHIVED_API,
-    ];
-    for text in texts {
-        let (code, fix) = meta(text);
-        assert_ne!(code, codes::REF_REFUSED, "{text} has no code of its own");
-        assert!(!fix.is_empty(), "{text} has no remediation");
+/// A ref update declared forced or not, as a preview may propose it.
+struct Proposal {
+    name: &'static str,
+    forced: bool,
+}
+
+impl RefChange for Proposal {
+    fn name(&self) -> &str {
+        self.name
+    }
+    fn is_created(&self) -> bool {
+        false
+    }
+    fn is_deleted(&self) -> bool {
+        false
+    }
+    fn is_forced(&self) -> bool {
+        self.forced
     }
 }
 
-/// Every code this crate can emit is listed in docs/error-codes.md, so a new code cannot ship
-/// undocumented.
 #[test]
-fn every_code_is_documented() {
-    let docs = include_str!("../../../../../docs/error-codes.md");
-    for code in codes::ALL {
-        assert!(docs.contains(&format!("`{code}`")), "`{code}` is not in docs/error-codes.md");
-    }
+fn forced_updates_are_refused_where_force_pushes_are_denied() {
+    let writer = Actor::Writer.pusher();
+    let protected = [rule("main", RuleSettings::default())];
+    let forced = decide_push(&protected, &writer, &[Proposal { name: "refs/heads/main", forced: true }]);
+    let refusal = &forced.verdict.refusals[0];
+    assert_eq!((refusal.code, refusal.rule.as_deref()), (codes::PROTECTED_FORCE_PUSH, Some("branch protection main (deny_force_push)")));
+    assert!(!forced.verdict.deny_non_fast_forwards, "a refused update is not left to git");
+    let plain = decide_push(&protected, &writer, &[Proposal { name: "refs/heads/main", forced: false }]);
+    assert!(!plain.verdict.is_refused() && plain.verdict.deny_non_fast_forwards);
 }

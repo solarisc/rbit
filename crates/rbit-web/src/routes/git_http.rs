@@ -35,12 +35,10 @@ mod advertisement;
 pub use advertisement::info_refs;
 mod denied;
 pub(super) use denied::Denied;
+pub(crate) use denied::mirror_forbidden;
 mod repositories;
 use denied::TOKEN_REQUIRED;
 use repositories::CallerRepositories;
-
-#[cfg(test)]
-use rbit_services::mirrors;
 
 use async_compression::tokio::bufread::GzipDecoder;
 use axum::{
@@ -492,7 +490,8 @@ mod tests {
         let response = Denied::Mirror.into_response();
         assert_eq!(response.status(), StatusCode::FORBIDDEN);
         let body = axum::body::to_bytes(response.into_body(), 1024).await.unwrap();
-        assert_eq!(&body[..], mirrors::PUSH_REFUSED.as_bytes());
+        assert_eq!(&body[..], denied::mirror_forbidden().as_bytes());
+        assert!(String::from_utf8_lossy(&body).contains("[repository_mirror]"));
     }
 
     #[test]

@@ -39,6 +39,9 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `remediation` (what would make the request pass) next to `code`. Existing codes are kept;
   the new ones are listed in [docs/error-codes.md](docs/error-codes.md).
 - `rbit --json` errors carry the same `rule` and `remediation` when the server names them.
+- Add a read-only push preflight: `GET /api/v1/repos/{owner}/{repo}/agent/preflight/push`
+  answers whether the caller's credential may make one proposed ref update, using the push gate
+  the transports use, and `rbit preflight push` asks it for the local `HEAD` without pushing.
 
 ## [0.2.2] - 2026-11-13
 

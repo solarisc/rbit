@@ -4,6 +4,7 @@ use axum::{
     http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
+use rbit_core::protection::codes;
 use rbit_services::mirrors;
 use rbit_transport::smart_http::{
     access::{AccessRefusal, PUSH_FORBIDDEN, REPOSITORY_NOT_FOUND, token_scope_forbidden},
@@ -73,11 +74,17 @@ impl IntoResponse for Denied {
             )
                 .into_response(),
             Self::Unavailable { retry_after_seconds } => unavailable_response(UNAVAILABLE_MESSAGE, retry_after_seconds),
-            Self::Mirror => (StatusCode::FORBIDDEN, mirrors::PUSH_REFUSED).into_response(),
+            Self::Mirror => (StatusCode::FORBIDDEN, mirror_forbidden()).into_response(),
             Self::NotFound => (StatusCode::NOT_FOUND, REPOSITORY_NOT_FOUND).into_response(),
             Self::Internal => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         }
     }
+}
+
+/// The body of a push to a pull mirror: its code, the text and the fix, as a refused push's
+/// report words them.
+pub(crate) fn mirror_forbidden() -> String {
+    format!("[{}] {} (fix: {})", codes::REPOSITORY_MIRROR, mirrors::PUSH_REFUSED, mirrors::PUSH_FIX)
 }
 
 #[cfg(test)]

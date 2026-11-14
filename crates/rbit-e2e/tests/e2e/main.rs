@@ -34,6 +34,7 @@ mod lfs;
 mod limits;
 mod notification_email;
 mod orgs;
+mod preflight;
 mod protection;
 mod pull_base;
 mod pulls;

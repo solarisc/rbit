@@ -54,6 +54,11 @@ pub trait RefChange {
     fn is_created(&self) -> bool;
     /// The update deletes the ref.
     fn is_deleted(&self) -> bool;
+    /// The client declared the update a non-fast-forward (a force push). Only previews set
+    /// it: a real push leaves the fast-forward check to Git (`receive.denyNonFastForwards`).
+    fn is_forced(&self) -> bool {
+        false
+    }
 }
 
 /// A branch update the server itself asks about (deleting a head branch, committing in
@@ -228,7 +233,7 @@ struct Outcome {
 }
 
 /// Priority of refusal texts when several rules refuse one update (lower wins).
-const PRIORITY: [&str; 3] = [reasons::DELETION, reasons::RESTRICTED, reasons::PULL_REQUEST];
+const PRIORITY: [&str; 4] = [reasons::DELETION, reasons::RESTRICTED, reasons::PULL_REQUEST, reasons::FORCE_PUSH];
 
 impl Outcome {
     fn refuse(&mut self, text: &'static str, setting: &'static str, rule: usize) {
@@ -268,7 +273,11 @@ fn apply<U: PartialEq, T: PartialEq, C>(
         outcome.refuse(reasons::PULL_REQUEST, "require_pull_request", index);
     }
     if updates_existing && settings.deny_force_push {
-        outcome.deny_non_fast_forwards = true;
+        if update.is_forced() {
+            outcome.refuse(reasons::FORCE_PUSH, "deny_force_push", index);
+        } else {
+            outcome.deny_non_fast_forwards = true;
+        }
     }
 }
 
@@ -279,7 +288,8 @@ fn apply<U: PartialEq, T: PartialEq, C>(
 ///   this is defence in depth);
 /// * branches: every matching rule applies (deletion, then restriction, then "pull
 ///   request" decide the reason shown); updates of an existing branch protected
-///   against force pushes set `deny_non_fast_forwards`;
+///   against force pushes set `deny_non_fast_forwards`, or are refused when the update
+///   is declared forced ([`RefChange::is_forced`]);
 /// * creating or updating replacement refs: refused, since they can override protected objects;
 /// * other refs (tags, notes): allowed.
 ///
