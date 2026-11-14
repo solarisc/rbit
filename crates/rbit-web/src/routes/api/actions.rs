@@ -1426,6 +1426,7 @@ mod tests {
                 "url": "https://git.example.com/api/v1/repos/alice/rocket/actions/workflows/ci.yml",
                 "html_url": "https://git.example.com/alice/rocket/actions/workflows/ci.yml",
                 "badge_url": "https://git.example.com/alice/rocket/actions/workflows/ci.yml/badge.svg",
+                "warnings": [],
             })
         );
         assert_eq!(json["workflows"][1]["id"], "nightly.yml");
