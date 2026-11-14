@@ -6,9 +6,9 @@ use std::collections::BTreeMap;
 use rbit_git::GitError;
 use rbit_workflow::model::Warning;
 
+use super::ActionsService;
 use super::browse::WorkflowState;
 use super::workflow_files::GitWorkflows;
-use super::ActionsService;
 use crate::{RepoContext, ServiceError};
 
 impl ActionsService {
