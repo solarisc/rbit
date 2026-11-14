@@ -26,8 +26,7 @@ use tokio::{
 };
 
 use crate::{
-    SshError,
-    host_key,
+    SshError, host_key,
     limits::{AddressCounts, PreAuthLimits, PreAuthSlot},
     session::Connection,
     tasks::SshTasks,
