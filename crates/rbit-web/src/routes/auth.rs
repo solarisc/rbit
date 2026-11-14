@@ -72,7 +72,10 @@ pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> WebResult<
     if let Some(token) = middleware::session_token(&jar) {
         state.services.accounts.end_session(&token).await?;
     }
-    let jar = jar.remove(Cookie::build(SESSION_COOKIE).path("/")).remove(Cookie::build(middleware::LEGACY_SESSION_COOKIE).path("/"));
+    let jar = jar
+        .remove(Cookie::build(SESSION_COOKIE).path("/"))
+        .remove(Cookie::build(middleware::LEGACY_SESSION_COOKIE).path("/"))
+        .remove(Cookie::build(crate::sudo::COOKIE).path("/"));
     Ok((jar, Redirect::to("/")).into_response())
 }
 
