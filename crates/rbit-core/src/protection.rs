@@ -12,7 +12,8 @@ use crate::{
 
 pub use rules::{
     BranchPattern, Bypass, MAX_ALLOWED, MAX_PATTERN_LEN, MAX_REQUIRED_APPROVALS, MAX_RULES, PULL_REFS, PatternError, ProtectionId,
-    PushDecision, PushVerdict, Refusal, RuleChange, RuleError, RuleSettings, decide_push, is_protected, may_delete, merge_rules, reasons,
+    PushDecision, PushVerdict, Refusal, RuleChange, RuleError, RuleSettings, codes, decide_push, is_protected, may_delete, merge_rules,
+    meta, reasons,
 };
 
 /// What the decisions need of a rule, over domain identifiers.
@@ -60,4 +61,14 @@ pub struct BranchProtection {
     pub created_by: Option<AccountId>,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
+}
+
+#[cfg(test)]
+mod tests {
+    /// The Git refusal of an archived repository names the same sentence `repositories` does, so
+    /// the text a client sees does not change.
+    #[test]
+    fn the_archived_git_text_is_the_repositories_text() {
+        assert_eq!(super::rules::reasons::ARCHIVED, rbit_repositories::ARCHIVED_READ_ONLY);
+    }
 }

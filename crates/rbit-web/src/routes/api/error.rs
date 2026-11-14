@@ -16,6 +16,7 @@ use axum::{
     http::{HeaderValue, Method, StatusCode, header},
     response::{IntoResponse, Response},
 };
+use rbit_core::protection::codes;
 use rbit_services::ServiceError;
 use serde::Serialize;
 
@@ -28,6 +29,13 @@ pub struct FieldError {
     pub message: String,
 }
 
+/// Which rule refused a request, and what would make it pass.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RefusalDetail {
+    pub rule: Option<String>,
+    pub remediation: String,
+}
+
 #[derive(Debug)]
 pub struct ApiError {
     pub status: StatusCode,
@@ -38,6 +46,8 @@ pub struct ApiError {
     pub location: Option<String>,
     /// A more precise `code` than the status implies (`head_changed` for a 409, …).
     pub specific: Option<&'static str>,
+    /// For a refusal: which rule refused it and what would make it pass (boxed, to keep the error small).
+    pub refusal: Option<Box<RefusalDetail>>,
 }
 
 pub type ApiResult<T> = Result<T, ApiError>;
@@ -50,17 +60,30 @@ struct Body<'a> {
     errors: &'a [FieldError],
     #[serde(skip_serializing_if = "Option::is_none")]
     url: Option<&'a str>,
+    /// Which rule or setting refused (refusals only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    rule: Option<&'a str>,
+    /// What would make the request pass (refusals only).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    remediation: Option<&'a str>,
 }
 
 impl ApiError {
     pub fn new(status: StatusCode, message: impl Into<String>) -> Self {
-        Self { status, message: message.into(), errors: Vec::new(), retry_after: None, location: None, specific: None }
+        Self { status, message: message.into(), errors: Vec::new(), retry_after: None, location: None, specific: None, refusal: None }
     }
 
     /// This error with `code` instead of the one its status implies.
     #[must_use]
     pub fn with_code(self, code: &'static str) -> Self {
         Self { specific: Some(code), ..self }
+    }
+
+    /// This error as a refusal: the `rule` that refused it (when one did) and what would
+    /// make the request pass.
+    #[must_use]
+    pub fn refused_by(self, rule: Option<String>, remediation: impl Into<String>) -> Self {
+        Self { refusal: Some(Box::new(RefusalDetail { rule, remediation: remediation.into() })), ..self }
     }
 
     /// The stable code of the body: `not_found`, `unauthenticated`, `forbidden`,
@@ -111,11 +134,20 @@ impl ApiError {
             retry_after: None,
             location: None,
             specific: None,
+            refusal: None,
         }
     }
 
     pub fn rate_limited(retry_after_seconds: u64) -> Self {
         Self { retry_after: Some(retry_after_seconds), ..Self::new(StatusCode::TOO_MANY_REQUESTS, "API rate limit exceeded; retry later") }
+            .refused_by(None, format!("Retry after {retry_after_seconds} seconds."))
+    }
+
+    /// A merge or branch write refused (`405`): its code, the rule that asks and the fix.
+    pub fn blocked(blocked: rbit_services::pulls::Blocked) -> Self {
+        Self::new(StatusCode::METHOD_NOT_ALLOWED, blocked.message.clone())
+            .with_code(blocked.code)
+            .refused_by(blocked.rule, blocked.remediation)
     }
 
     /// Maps a service error, attributing validation failures to `field`.
@@ -126,7 +158,9 @@ impl ApiError {
             ServiceError::NotFound => Self::not_found(),
             ServiceError::Forbidden => Self::forbidden("You do not have permission to do that"),
             // GitHub's wording, which clients may match on.
-            ServiceError::Archived => Self::forbidden("Repository was archived so is read-only."),
+            ServiceError::Archived => Self::forbidden("Repository was archived so is read-only.")
+                .with_code(codes::REPOSITORY_ARCHIVED)
+                .refused_by(None, "Ask a repository administrator to unarchive the repository."),
             ServiceError::RegistrationClosed => Self::forbidden(error.to_string()),
             ServiceError::InvalidCredentials => Self::unauthorized("Bad credentials"),
             ServiceError::RateLimited { retry_after_seconds } => Self::rate_limited(retry_after_seconds),
@@ -173,7 +207,14 @@ impl From<PathRejection> for ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        let body = Body { message: &self.message, code: self.code(), errors: &self.errors, url: self.location.as_deref() };
+        let body = Body {
+            message: &self.message,
+            code: self.code(),
+            errors: &self.errors,
+            url: self.location.as_deref(),
+            rule: self.refusal.as_deref().and_then(|refusal| refusal.rule.as_deref()),
+            remediation: self.refusal.as_deref().map(|refusal| refusal.remediation.as_str()),
+        };
         let mut response = (self.status, Json(body)).into_response();
         let headers = response.headers_mut();
         if let Some(location) = self.location.as_deref().and_then(|location| HeaderValue::from_str(location).ok()) {

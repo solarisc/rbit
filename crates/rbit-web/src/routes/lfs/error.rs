@@ -5,6 +5,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use rbit_services::{ServiceError, mirrors};
+use rbit_transport::smart_http::access::token_scope_forbidden;
 use serde_json::json;
 
 use super::json_response;
@@ -80,6 +81,7 @@ impl From<Denied> for LfsError {
             ),
             Denied::Forbidden => Self::new(StatusCode::FORBIDDEN, "you do not have permission to push to this repository"),
             Denied::Mirror => Self::new(StatusCode::FORBIDDEN, mirrors::PUSH_REFUSED),
+            Denied::TokenScope => Self::new(StatusCode::FORBIDDEN, token_scope_forbidden()),
         }
     }
 }

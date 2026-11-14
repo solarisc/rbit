@@ -59,7 +59,7 @@ fn refused(failure: MergeFailure) -> ApiError {
         MergeFailure::HeadChanged | MergeFailure::BaseChanged => {
             ApiError::new(StatusCode::CONFLICT, "the branch is not at the commit you expected").with_code("head_changed")
         }
-        MergeFailure::Blocked(message) => ApiError::new(StatusCode::METHOD_NOT_ALLOWED, message),
+        MergeFailure::Blocked(blocked) => ApiError::blocked(blocked),
         MergeFailure::Service(error) => error.into(),
     }
 }

@@ -17,6 +17,14 @@ use crate::Service;
 /// The body of a push refused for missing write access.
 pub const PUSH_FORBIDDEN: &str = "you do not have permission to push to this repository";
 
+/// The body of a push refused because the caller's personal access token is too narrow to
+/// push: its code, the reason and the fix, as a refused push's report words them.
+pub fn token_scope_forbidden() -> String {
+    let reason = rbit_core::protection::reasons::TOKEN_SCOPE;
+    let (code, fix) = rbit_core::protection::meta(reason);
+    format!("[{code}] {reason} (fix: {fix})")
+}
+
 /// The body of a request for a repository the caller cannot see.
 pub const REPOSITORY_NOT_FOUND: &str = "repository not found";
 
@@ -34,6 +42,12 @@ pub trait RepositoryGate {
     /// Whether the caller's access to `repository` allows pushing.
     fn can_write(&self, repository: &Self::Repository) -> bool;
 
+    /// Whether the caller's personal access token is too narrow to push at all (its scope
+    /// has no write right). Such a token is refused as a token, whatever the user may do.
+    fn token_scope_refuses_writes(&self) -> bool {
+        false
+    }
+
     /// Whether `repository` is a pull mirror (which only changes by fetching upstream).
     fn is_mirror(&self, repository: &Self::Repository) -> impl Future<Output = Result<bool, Self::Error>> + Send;
 }
@@ -45,6 +59,8 @@ pub enum AccessRefusal {
     Challenge,
     /// `403` [`PUSH_FORBIDDEN`].
     Forbidden,
+    /// `403` [`token_scope_forbidden`]: the caller's token cannot push.
+    TokenScope,
     /// `404` [`REPOSITORY_NOT_FOUND`].
     NotFound,
     /// `403`: a push to a pull mirror.
@@ -73,7 +89,13 @@ where
         return Ok(repository);
     }
     if !gate.can_write(&repository) {
-        return Err(if anonymous { AccessRefusal::Challenge } else { AccessRefusal::Forbidden });
+        return Err(if anonymous {
+            AccessRefusal::Challenge
+        } else if gate.token_scope_refuses_writes() {
+            AccessRefusal::TokenScope
+        } else {
+            AccessRefusal::Forbidden
+        });
     }
     // Checked after access, so only those who could otherwise push learn it is a mirror.
     match gate.is_mirror(&repository).await {

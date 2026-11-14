@@ -363,7 +363,7 @@ pub async fn merge(
         Err(MergeFailure::BaseChanged) => {
             Err(ApiError::new(StatusCode::CONFLICT, "Base branch was changed. Review and try the merge again.").with_code("base_changed"))
         }
-        Err(MergeFailure::Blocked(message)) => Err(ApiError::new(StatusCode::METHOD_NOT_ALLOWED, message)),
+        Err(MergeFailure::Blocked(blocked)) => Err(ApiError::blocked(blocked)),
         Err(MergeFailure::Service(error)) => Err(error.into()),
     }
 }
