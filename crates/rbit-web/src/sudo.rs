@@ -6,6 +6,9 @@
 //! and expires after [`WINDOW_SECONDS`]. API calls authenticated by a token never consult it,
 //! because a token is already a credential.
 
+use std::{convert::Infallible, fmt::Write};
+
+use axum::{extract::FromRequestParts, http::request::Parts};
 use axum_extra::extract::{
     CookieJar,
     cookie::{Cookie, SameSite},
@@ -14,7 +17,7 @@ use rbit_core::{Timestamp, User};
 use rbit_services::ServiceError;
 use sha2::{Digest, Sha256};
 
-use crate::AppState;
+use crate::{AppState, client_ip::Https};
 
 /// Refusal when a credential change arrives without a password and without a fresh stamp.
 const REAUTH_REQUIRED: &str = "confirm your current password to add credentials";
@@ -33,7 +36,11 @@ fn digest(session: &str, issued_at: i64) -> String {
     hash.update(session.as_bytes());
     hash.update(b"\0");
     hash.update(issued_at.to_be_bytes());
-    hash.finalize().iter().map(|byte| format!("{byte:02x}")).collect()
+    hash.finalize().iter().fold(String::new(), |mut hex, byte| {
+        // Writing to a String cannot fail.
+        let _ = write!(hex, "{byte:02x}");
+        hex
+    })
 }
 
 /// Stamps `jar` as proof of identity for `session` (its encoded token) at `now`.
@@ -62,10 +69,35 @@ pub fn is_fresh(jar: &CookieJar, session: &str, now: i64) -> bool {
     given.len() == expected.len() && given.bytes().zip(expected.bytes()).fold(0_u8, |acc, (a, b)| acc | (a ^ b)) == 0
 }
 
+/// The cookie jar and whether the request arrived over HTTPS: what a credential change needs to
+/// stamp the window. One extractor, so handlers stay within the argument limit.
+pub struct Stamp {
+    pub jar: CookieJar,
+    pub secure: bool,
+}
+
+impl FromRequestParts<AppState> for Stamp {
+    type Rejection = Infallible;
+
+    #[allow(unknown_lints, clippy::unused_async_trait_impl)]
+    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
+        let jar = <CookieJar as FromRequestParts<AppState>>::from_request_parts(parts, state).await?;
+        let Https(secure) = <Https as FromRequestParts<AppState>>::from_request_parts(parts, state).await?;
+        Ok(Self { jar, secure })
+    }
+}
+
 /// Lets a credential change through. A fresh stamp passes. Otherwise `password`, the account's
 /// current password, is checked the way sign-in checks it, and a correct one stamps the window
 /// again. Refusals are `ServiceError::Invalid` with the text the form shows.
-pub async fn confirm(state: &AppState, jar: CookieJar, secure: bool, session: &str, user: &User, password: String) -> Result<CookieJar, ServiceError> {
+pub async fn confirm(
+    state: &AppState,
+    jar: CookieJar,
+    secure: bool,
+    session: &str,
+    user: &User,
+    password: String,
+) -> Result<CookieJar, ServiceError> {
     if is_fresh(&jar, session, now()) {
         return Ok(jar);
     }
@@ -107,7 +139,8 @@ mod tests {
         let forged = CookieJar::new().add(Cookie::new(COOKIE, "1000.00"));
         assert!(!is_fresh(&forged, SESSION, 1_000));
         let stamped = issue(CookieJar::new(), false, SESSION, 1_000);
-        let moved = CookieJar::new().add(Cookie::new(COOKIE, format!("1500.{}", stamped.get(COOKIE).unwrap().value().split_once('.').unwrap().1)));
+        let moved =
+            CookieJar::new().add(Cookie::new(COOKIE, format!("1500.{}", stamped.get(COOKIE).unwrap().value().split_once('.').unwrap().1)));
         assert!(!is_fresh(&moved, SESSION, 1_500), "the digest covers the issue time");
     }
 }

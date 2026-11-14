@@ -157,11 +157,11 @@ pub async fn add_deploy_key(
     viewer: Viewer,
     page: Page,
     Path((owner, repo)): Path<(String, String)>,
-    jar: CookieJar,
-    Https(https): Https,
+    stamp: sudo::Stamp,
     Form(input): Form<KeyFormInput>,
 ) -> WebResult<Response> {
     let loaded = load_for_admin(&state, &viewer, &owner, &repo).await?;
+    let (jar, https) = (stamp.jar, stamp.secure);
     let session = crate::middleware::session_token(&jar).map(|token| token.encode()).unwrap_or_default();
     let password = input.current_password.clone();
     let form = input.into_form();
