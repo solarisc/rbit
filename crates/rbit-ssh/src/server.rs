@@ -193,7 +193,14 @@ async fn accept_loop(listener: TcpListener, shared: Arc<Shared>, russh_config: A
                         drop(socket);
                         continue;
                     };
-                    let connection = serve_connection(Arc::clone(&shared), Arc::clone(&russh_config), socket, peer, for_connections.clone(), preauth);
+                    let connection = serve_connection(
+                        Arc::clone(&shared),
+                        Arc::clone(&russh_config),
+                        socket,
+                        peer,
+                        for_connections.clone(),
+                        preauth,
+                    );
                     shared.tasks.connection(&mut connections, async move {
                         connection.await;
                         drop(slot);
