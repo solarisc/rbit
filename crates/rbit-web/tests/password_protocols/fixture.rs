@@ -30,7 +30,7 @@ pub(super) struct Fixture {
     database: Database,
     kv: KvStore,
     config: Arc<Config>,
-    user: User,
+    pub(super) user: User,
     pub(super) token: String,
 }
 
