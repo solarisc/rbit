@@ -442,7 +442,7 @@ pub use merge_queue::{NewEntry, QueueEntry};
 mod outcomes;
 mod queue;
 mod scratch;
-pub use queue::QueuePlace;
+pub use queue::{QueuePlace, RunProgress};
 pub use scratch::ScratchRef;
 mod supersede;
 mod terminations;
