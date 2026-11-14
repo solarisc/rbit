@@ -89,6 +89,7 @@ mod trigger_inputs;
 pub mod triggers;
 pub mod trust;
 mod workflow_files;
+mod workflow_states;
 
 use std::{
     sync::{

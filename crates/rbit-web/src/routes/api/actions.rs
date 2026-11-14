@@ -82,6 +82,7 @@ mod terminations;
 // Agent loop: logs by step, failure digests, attempts.
 mod agent_logs;
 mod agent_status;
+mod warnings;
 // Agent loop: superseded branch runs.
 mod supersede;
 
@@ -504,13 +505,8 @@ fn workflow_json(workflow: &WorkflowState, ctx: &RepoContext, base: &str) -> Val
         "url": format!("{base}/api/v1/repos/{full_name}/actions/workflows/{file}"),
         "html_url": format!("{base}/{full_name}/actions/workflows/{file}"),
         "badge_url": format!("{base}/{full_name}/actions/workflows/{file}/badge.svg"),
-        "warnings": warnings_json(workflow),
+        "warnings": warnings::warnings_json(workflow),
     })
-}
-
-/// A workflow's warnings, each with its `code` and an English `message`.
-fn warnings_json(workflow: &WorkflowState) -> Vec<Value> {
-    workflow.warnings.iter().map(|warning| json!({ "code": warning.code, "message": warning.message() })).collect()
 }
 
 /// `GET /repos/{owner}/{repo}/actions/workflows/{workflow_id}`: by file name or path.

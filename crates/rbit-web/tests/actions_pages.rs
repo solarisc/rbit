@@ -379,7 +379,6 @@ async fn workflows_warn_about_events_that_never_start_runs() {
     let job = "jobs: {a: {runs-on: x, steps: [{run: x}]}}\n";
     let (release, ci) = (format!("on: [push, release]\n{job}"), format!("on: push\n{job}"));
     push(&repo, &[(".rbit/workflows/release.yml", release.as_str()), (".rbit/workflows/ci.yml", ci.as_str())]);
-
     let page = fixture.page("/alice/rocket/actions/workflows/release.yml", &fixture.owner).await;
     assert!(page.contains("release does not start runs on rbit"), "{page}");
     let page = fixture.page("/alice/rocket/actions/workflows/ci.yml", &fixture.owner).await;

@@ -28,6 +28,7 @@ mod runs_view;
 mod status;
 mod task;
 mod util;
+mod workflows;
 
 use std::time::Duration;
 

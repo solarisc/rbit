@@ -617,7 +617,7 @@ async fn workflows(api: &Api, repo: &Repo, command: WorkflowCommand, output: &Ou
         WorkflowCommand::List => {
             let listed = api.get(&actions(repo, "workflows")).await?;
             if output.json {
-                agent::print("rbit.workflows/1", workflow_listing(&listed, &output.fields));
+                agent::print("rbit.workflows/1", super::workflows::workflow_listing(&listed, &output.fields));
             } else {
                 for workflow in listed["workflows"].as_array().into_iter().flatten() {
                     println!("{:<30} {:<40} {}", clip(text(workflow, "name"), 30), text(workflow, "path"), text(workflow, "state"));
@@ -647,13 +647,6 @@ async fn workflows(api: &Api, repo: &Repo, command: WorkflowCommand, output: &Ou
         }
     }
     Ok(0)
-}
-
-/// The body of `rbit workflow list --json` (after `schema`): the API's workflows, each with
-/// its `warnings`, an array of `{code, message}`.
-fn workflow_listing(listed: &Value, fields: &[String]) -> Value {
-    let workflows = listed["workflows"].as_array().cloned().unwrap_or_default();
-    json!({ "workflows": agent::select(workflows, fields) })
 }
 
 async fn artifacts(api: &Api, repo: &Repo, command: ArtifactCommand) -> anyhow::Result<i32> {
@@ -768,22 +761,6 @@ async fn raw_api(
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn workflow_list_json_carries_each_workflows_warnings() {
-        let warning = json!({ "code": "unsupported_event", "message": "release does not start runs on rbit" });
-        let release = json!({
-            "id": "release.yml",
-            "name": "Release",
-            "path": ".rbit/workflows/release.yml",
-            "state": "active",
-            "warnings": [warning],
-        });
-        let ci = json!({ "id": "ci.yml", "name": "CI", "path": ".rbit/workflows/ci.yml", "state": "active", "warnings": [] });
-        let listed = json!({ "total_count": 2, "workflows": [release, ci] });
-        assert_eq!(workflow_listing(&listed, &[]), json!({ "workflows": [release, ci] }));
-        assert_eq!(workflow_listing(&json!({}), &[]), json!({ "workflows": [] }));
-    }
 
     #[test]
     fn an_artifact_never_unpacks_into_a_git_directory() {
