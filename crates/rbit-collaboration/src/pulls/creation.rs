@@ -14,6 +14,9 @@ pub struct PullCreationAccess {
     pub base_readable: bool,
     pub head_readable: bool,
     pub base_archived: bool,
+    /// The head repository is private while the base is public: its commits would be
+    /// readable by people who can read only the base.
+    pub private_head_into_public_base: bool,
 }
 
 /// The side of a pull request a branch belongs to.
@@ -107,6 +110,9 @@ impl<'a, P: PullCreationPort> PullCreation<'a, P> {
         }
         if !self.access.same_repo && !self.port.head_in_network().await.map_err(PullCreationError::Port)? {
             return Err(PullCreationError::NotFound);
+        }
+        if self.access.private_head_into_public_base {
+            return Err(invalid("a pull request cannot be opened from a private fork into a public repository: people who can read only the public repository would see its commits"));
         }
         if self.access.base_archived {
             return Err(PullCreationError::Archived);
