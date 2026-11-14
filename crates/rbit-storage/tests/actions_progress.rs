@@ -3,11 +3,12 @@
 
 use rbit_core::{
     RepoId, Timestamp, Visibility,
-    actions::{RunEvent, RunId, RunnerCapabilities, RunnerId, RunnerLabel, RunnerScope, Status},
+    actions::{BranchPolicy, RunEvent, RunId, RunnerCapabilities, RunnerId, RunnerLabel, RunnerScope, Status},
 };
 use rbit_storage::{
     Database, NewRepository, NewUser,
     sqlite::{
+        actions_environments::EnvironmentChanges,
         actions_runners::{NewRegistrationToken, NewRunner},
         actions_runs::{ActionsRunStore, ClaimRequest, Claimed, NewJob, NewRun, RunProgress, RunStart},
     },
@@ -181,8 +182,22 @@ async fn progress_counts_the_jobs_of_each_run_by_state() {
     assert_eq!((running.job.run_id, running.job.key.as_str()), (first, "test"));
     let second = queue.pipeline().await;
 
-    let progress = queue.store().progress(&[first, second]).await.unwrap();
+    let progress = queue.store().progress(&[first, second], NOW).await.unwrap();
     assert_eq!(progress[&first], RunProgress { total: 3, done: 1, running: 1, waiting: 0 });
     assert_eq!(progress[&second], RunProgress { total: 3, done: 0, running: 0, waiting: 1 });
-    assert!(queue.store().progress(&[]).await.unwrap().is_empty());
+    assert!(queue.store().progress(&[], NOW).await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn an_environment_timer_does_not_count_as_waiting_for_a_runner() {
+    let mut queue = Queue::new().await;
+    let changes = EnvironmentChanges { reviewers: &[], prevent_self_review: false, branch_policy: &BranchPolicy::All, wait_timer: 1 };
+    queue.db.actions_environments().put(queue.repo, "staging", &changes, NOW).await.unwrap();
+    let linux = ["linux".to_owned()];
+    let run = queue.run(&[NewJob { environment: Some("staging"), ..new_job("deploy", &[], &linux) }]).await;
+    let queued = NOW.0 + queue.clock;
+    for (since_queue, waiting) in [(59, 0), (60, 1)] {
+        let progress = queue.store().progress(&[run], Timestamp(queued + since_queue)).await.unwrap();
+        assert_eq!(progress[&run], RunProgress { total: 1, done: 0, running: 0, waiting });
+    }
 }

@@ -12,7 +12,7 @@
 use std::collections::BTreeMap;
 
 use rbit_core::{
-    Account, AccountId, RepoId,
+    Account, AccountId, RepoId, Timestamp,
     actions::{Job, JobId, Run, RunEvent, RunId, RunnerId, Status, Step, TaskId},
 };
 pub use rbit_storage::sqlite::actions_runs::RunProgress;
@@ -200,7 +200,7 @@ impl ActionsService {
         };
         let people = self.people(runs.iter().flat_map(|run| [run.actor, run.trigger_actor])).await?;
         let unfinished: Vec<RunId> = runs.iter().filter(|run| !run.status.is_done()).map(|run| run.id).collect();
-        let progress = store.progress(&unfinished).await?;
+        let progress = store.progress(&unfinished, Timestamp::now()).await?;
         Ok(RunListing { runs, people, next, progress })
     }
 
