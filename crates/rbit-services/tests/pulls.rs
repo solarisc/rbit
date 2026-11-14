@@ -845,7 +845,8 @@ async fn a_public_fork_that_turns_private_stops_feeding_its_pull_request() {
 
     // He makes the fork private and pushes a commit to the head branch.
     let fork = fixture.repo(&fixture.bob, "bob").await;
-    fixture.services.repo_settings.update(&fork, UpdateRepository { visibility: Visibility::Private, ..Default::default() }).await.unwrap();
+    let private = UpdateRepository { visibility: Visibility::Private, ..Default::default() };
+    fixture.services.repo_settings.update(&fork, private).await.unwrap();
     git(&fixture.work, &["checkout", "-q", "feature"]);
     let secret = commit(&fixture.work, "secret.txt", "private
 ", "Secret work");

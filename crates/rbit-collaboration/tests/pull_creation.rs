@@ -67,7 +67,13 @@ impl PullCreationPort for Script {
     }
 }
 
-const ACCESS: PullCreationAccess = PullCreationAccess { same_repo: true, base_readable: true, head_readable: true, base_archived: false, private_head_into_public_base: false };
+const ACCESS: PullCreationAccess = PullCreationAccess {
+    same_repo: true,
+    base_readable: true,
+    head_readable: true,
+    base_archived: false,
+    private_head_into_public_base: false,
+};
 
 fn input<'a>(base: &'a str, head: &'a str, title: &'a str) -> PullInput<'a> {
     PullInput { base_branch: base, head_branch: head, title, body: "", draft: false }

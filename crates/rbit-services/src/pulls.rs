@@ -362,7 +362,10 @@ impl PullService {
             base_readable: base.access.can_read(),
             head_readable: head.access.can_read(),
             base_archived: base.repo.repo.is_archived(),
-            private_head_into_public_base: exposes_private_head(base.repo.repo.visibility.is_public(), head.repo.repo.visibility.is_public()),
+            private_head_into_public_base: exposes_private_head(
+                base.repo.repo.visibility.is_public(),
+                head.repo.repo.visibility.is_public(),
+            ),
         };
         let input = PullInput {
             base_branch: &input.base_branch,
