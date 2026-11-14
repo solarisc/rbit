@@ -1,6 +1,7 @@
 //! The pull request service against real repositories: creation across a fork,
 //! `refs/pull/{n}/head`, pushes to head and base, mergeability, reviews, every merge
 //! strategy, reopening rules and webhook payloads.
+mod fork_visibility;
 mod queue;
 use std::{path::Path, process::Command, sync::Arc};
 
@@ -36,7 +37,6 @@ fn commit(dir: &Path, file: &str, contents: &str, message: &str) -> String {
     git(dir, &["commit", "-q", "-m", message]);
     git(dir, &["rev-parse", "HEAD"])
 }
-
 struct Fixture {
     _dir: tempfile::TempDir,
     database: Database,

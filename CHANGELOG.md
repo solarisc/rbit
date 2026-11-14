@@ -38,6 +38,10 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - SSH caps connections that have not authenticated yet: 64 in total and 8 per address (IPv6:
   per /64). A connection frees its slot when it authenticates; `auth_timeout_seconds` still
   bounds how long it may stay unauthenticated.
+- A pull request can no longer be opened from a private fork into a public repository, and a
+  public fork that is made private stops updating its open pull requests (pushes no longer
+  copy its commits into the public repository) and cannot have them reopened. Their commits
+  would otherwise have been readable by anyone who can read only the public repository.
 
 ## [0.2.2] - 2026-11-13
 
