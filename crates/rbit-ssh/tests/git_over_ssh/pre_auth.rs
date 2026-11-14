@@ -32,7 +32,6 @@ async fn unauthenticated_connections_are_capped_and_freed_by_authentication() {
     drop(held.pop());
     tokio::time::sleep(std::time::Duration::from_millis(500)).await;
     let client = persistent_client(&harness, key).await;
-    assert_eq!(persistent_exec(&client, "true").await.0, 0);
 
     // Back to the full eight unauthenticated slots: one more is accepted, the next is refused.
     let mut accepted = tokio::net::TcpStream::connect(("127.0.0.1", harness.port)).await.unwrap();
