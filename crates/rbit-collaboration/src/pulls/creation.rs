@@ -19,6 +19,15 @@ pub struct PullCreationAccess {
     pub private_head_into_public_base: bool,
 }
 
+/// Refusal for a pull request whose head repository is private while its base is public.
+pub const PRIVATE_HEAD_REFUSAL: &str = "a pull request cannot be opened from a private fork into a public repository: people who can read only the public repository would see its commits";
+
+/// Whether a head repository of visibility `head_public` exposes private history through a base of
+/// visibility `base_public`. Opening, syncing and reopening a pull request all apply this rule.
+pub fn exposes_private_head(base_public: bool, head_public: bool) -> bool {
+    base_public && !head_public
+}
+
 /// The side of a pull request a branch belongs to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PullSide {
@@ -112,7 +121,7 @@ impl<'a, P: PullCreationPort> PullCreation<'a, P> {
             return Err(PullCreationError::NotFound);
         }
         if self.access.private_head_into_public_base {
-            return Err(invalid("a pull request cannot be opened from a private fork into a public repository: people who can read only the public repository would see its commits"));
+            return Err(invalid(PRIVATE_HEAD_REFUSAL));
         }
         if self.access.base_archived {
             return Err(PullCreationError::Archived);
