@@ -66,7 +66,14 @@ pub fn now() -> i64 {
 /// Lets a credential change through. A fresh stamp passes. Otherwise `password`, the account's
 /// current password, is confirmed (throttled by the service), and a correct one stamps the
 /// window again. Accounts without a password are told to sign in again.
-pub async fn confirm(state: &AppState, jar: CookieJar, secure: bool, session: &str, user: &User, password: String) -> Result<CookieJar, ServiceError> {
+pub async fn confirm(
+    state: &AppState,
+    jar: CookieJar,
+    secure: bool,
+    session: &str,
+    user: &User,
+    password: String,
+) -> Result<CookieJar, ServiceError> {
     let sudo = &state.services.sudo;
     if sudo.is_fresh(session, &stamp_value(&jar), now()).await? {
         return Ok(jar);

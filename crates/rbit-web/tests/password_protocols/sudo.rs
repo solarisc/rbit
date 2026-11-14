@@ -26,7 +26,11 @@ async fn create_token(fixture: &Fixture, session: &SessionToken, stamp: Option<&
         .request(
             Method::POST,
             "/settings/tokens",
-            &[(header::CONTENT_TYPE.as_str(), "application/x-www-form-urlencoded"), (header::COOKIE.as_str(), &cookie), ("HX-Request", "true")],
+            &[
+                (header::CONTENT_TYPE.as_str(), "application/x-www-form-urlencoded"),
+                (header::COOKIE.as_str(), &cookie),
+                ("HX-Request", "true"),
+            ],
             form,
         )
         .await
