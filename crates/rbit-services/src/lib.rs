@@ -37,6 +37,7 @@ mod outbound;
 mod password_work;
 pub mod preferences;
 pub mod profiles;
+pub mod sudo;
 pub mod protection;
 pub mod pulls;
 pub mod pushes;
@@ -148,6 +149,7 @@ pub struct Services {
     pub mail: MailService,
     pub orgs: OrgService,
     pub profiles: ProfileService,
+    pub sudo: sudo::SudoService,
     pub pushes: PushService,
     pub recovery: RecoveryService,
     pub repo_settings: RepoSettingsService,
@@ -291,6 +293,7 @@ impl Services {
             admin: AdminService::new(ctx.clone(), instance.clone(), passwords),
             insights: InsightsService::new(ctx.clone()),
             orgs: OrgService::new(ctx.clone(), instance.clone()),
+            sudo: sudo::SudoService::new(ctx.clone(), accounts.clone(), throttle.clone()),
             profiles: ProfileService::new(ctx.clone(), accounts, throttle.clone()),
             pushes: PushService::new(ctx.clone()),
             repo_settings: RepoSettingsService::new(database.clone(), ctx.repositories.clone(), ctx.events.clone()),

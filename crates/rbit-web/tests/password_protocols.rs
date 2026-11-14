@@ -2,6 +2,7 @@
 
 mod authenticated;
 mod fixture;
+mod sudo;
 mod tokens;
 
 use axum::http::{HeaderMap, Method, StatusCode, header};

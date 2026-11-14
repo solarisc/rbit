@@ -138,7 +138,8 @@ pub(crate) async fn start_session(
         .path("/")
         .max_age(time::Duration::seconds(state.services.accounts.session_lifetime_seconds()));
     // Signing in is itself a fresh proof of identity for credential changes.
-    let jar = crate::sudo::issue(jar.add(cookie), https, &token.encode(), crate::sudo::now());
+    let stamp = state.services.sudo.stamp(&token.encode(), crate::sudo::now()).await?;
+    let jar = crate::sudo::issue(jar.add(cookie), https, stamp);
     // The user's theme follows them: restore it on this device. A failure here must not
     // block signing in; the device simply keeps its current theme.
     let jar = match state.services.preferences.theme(user).await {
