@@ -1,6 +1,6 @@
 //! One statically selected password sign-in/accounting workflow for both proof modes.
-use super::{AuditAction, AuditEntry, ClientInfo, ServiceError, Services, SessionToken, SignInOutcome, ThrottleScope, User};
 use super::password_budget::PasswordBudget;
+use super::{AuditAction, AuditEntry, ClientInfo, ServiceError, Services, SessionToken, SignInOutcome, ThrottleScope, User};
 use crate::accounts::ProvenAccount;
 
 /// Inactive original-proof result. A signed-in account still needs the eventual

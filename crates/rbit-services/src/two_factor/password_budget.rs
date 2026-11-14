@@ -19,7 +19,12 @@ pub(super) struct PasswordBudget<'a> {
 
 impl<'a> PasswordBudget<'a> {
     /// Admits an attempt for `login` (already trimmed) from `client`, before any verification.
-    pub(super) fn start(throttle: &'a ThrottleService, scope: ThrottleScope, client: &ClientInfo, login: &str) -> Result<Self, ServiceError> {
+    pub(super) fn start(
+        throttle: &'a ThrottleService,
+        scope: ThrottleScope,
+        client: &ClientInfo,
+        login: &str,
+    ) -> Result<Self, ServiceError> {
         let ip = ip_key(client);
         // The network comes before the potentially long login: throttle keys are length-capped,
         // so appending the network could merge different networks.
