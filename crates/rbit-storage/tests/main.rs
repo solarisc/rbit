@@ -14,6 +14,7 @@ mod actions_claim_order;
 // Agent loop: scratch refs.
 mod actions_decisions;
 mod actions_flaky;
+mod actions_progress;
 mod actions_scratch;
 mod archives;
 mod backup;

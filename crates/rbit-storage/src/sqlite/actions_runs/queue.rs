@@ -1,8 +1,12 @@
 //! Where a waiting job stands in line: the jobs with the same labels handed out before it, and
-//! how long such jobs have recently taken, for an expected start.
+//! how long such jobs have recently taken, for an expected start. `progress` counts how far
+//! each run in the queue is.
 use super::ActionsRunStore;
 use crate::StorageError;
 use rbit_core::actions::JobId;
+
+mod progress;
+pub use progress::RunProgress;
 
 /// The sorted label set of job `$id` as one string: jobs with equal sets compete for the
 /// same runners.
