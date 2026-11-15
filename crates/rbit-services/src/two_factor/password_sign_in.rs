@@ -1,8 +1,6 @@
 //! One statically selected password sign-in/accounting workflow for both proof modes.
-use super::{
-    AuditAction, AuditEntry, ClientInfo, ServiceError, Services, SessionToken, SignInOutcome, ThrottleScope, User, account_key, ip_key,
-    login_key,
-};
+use super::password_budget::PasswordBudget;
+use super::{AuditAction, AuditEntry, ClientInfo, ServiceError, Services, SessionToken, SignInOutcome, ThrottleScope, User};
 use crate::accounts::ProvenAccount;
 
 /// Inactive original-proof result. A signed-in account still needs the eventual
@@ -80,29 +78,19 @@ impl Services {
     ) -> impl std::future::Future<Output = Result<PasswordSignInCompletion, ServiceError>> {
         let mut password = zeroize::Zeroizing::new(password);
         async move {
-            let (ip, login) = (ip_key(client), login.trim());
-            // Per login and per account, the budgets are kept per client network: wrong
-            // guesses from one network spend its own, so a stranger cannot keep the owner
-            // out of their account. An account-wide budget, five times larger, still bounds
-            // guesses spread over many networks.
-            // Keep the network before the potentially long email: throttle keys
-            // are length-capped, so appending it could merge different networks.
-            let typed = format!("{ip}@{}", login_key(login));
-            let local = |account: rbit_core::AccountId| format!("{}@{ip}", account_key(account));
-            self.throttle.check_client(ThrottleScope::SignIn, &ip)?;
-            self.throttle.check(ThrottleScope::SignIn, &typed)?;
-            let before_verify = |account: Option<rbit_core::AccountId>| {
-                account.map_or(Ok(()), |account| {
-                    self.throttle.check(ThrottleScope::SignIn, &local(account))?;
-                    self.throttle.check_client_failures(ThrottleScope::SignIn, &account_key(account))
-                })
-            };
+            let login = login.trim();
+            let budget = PasswordBudget::start(&self.throttle, ThrottleScope::SignIn, client, login)?;
             let (account, result) = if ORIGINAL {
-                let (account, result) =
-                    self.accounts.authenticate_original_proof(login, std::mem::take(&mut *password), before_verify).await;
+                let (account, result) = self
+                    .accounts
+                    .authenticate_original_proof(login, std::mem::take(&mut *password), |account| budget.before_verify(account))
+                    .await;
                 (account, result.map(PasswordSignInAccount::Original))
             } else {
-                let (account, result) = self.accounts.authenticate_resolved(login, std::mem::take(&mut *password), before_verify).await;
+                let (account, result) = self
+                    .accounts
+                    .authenticate_resolved(login, std::mem::take(&mut *password), |account| budget.before_verify(account))
+                    .await;
                 (account, result.map(PasswordSignInAccount::Legacy))
             };
             let account = match result {
@@ -110,12 +98,7 @@ impl Services {
                 Err(error) => {
                     let reason = match &error {
                         ServiceError::InvalidCredentials => {
-                            self.throttle.record_client_failure(ThrottleScope::SignIn, &ip);
-                            self.throttle.record_failure(ThrottleScope::SignIn, &typed);
-                            if let Some(account) = account {
-                                self.throttle.record_failure(ThrottleScope::SignIn, &local(account));
-                                self.throttle.record_client_failure(ThrottleScope::SignIn, &account_key(account));
-                            }
+                            budget.record_failure(account);
                             "wrong username or password"
                         }
                         ServiceError::Forbidden => "account suspended",
@@ -126,8 +109,7 @@ impl Services {
                 }
             };
             let user = account.user();
-            self.throttle.reset(ThrottleScope::SignIn, &typed);
-            self.throttle.reset(ThrottleScope::SignIn, &local(user.id()));
+            budget.reset(user.id());
             if self.two_factor.is_enabled(user.id()).await? {
                 let pending = match account {
                     PasswordSignInAccount::Legacy(user) => self.two_factor.start_pending(user.id(), "password"),

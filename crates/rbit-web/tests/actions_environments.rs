@@ -34,8 +34,8 @@ impl Web<'_> {
             .method(method)
             .uri(path)
             .header(header::COOKIE, &self.cookie)
-            .header(header::HOST, "localhost:3000")
-            .header(header::ORIGIN, "http://localhost:3000")
+            .header(header::HOST, "git.example.com")
+            .header(header::ORIGIN, "https://git.example.com")
             .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
             .body(Body::from(body.to_owned()))
             .unwrap();
