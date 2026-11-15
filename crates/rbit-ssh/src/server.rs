@@ -3,10 +3,9 @@
 
 use std::{
     borrow::Cow,
-    collections::HashMap,
     net::{IpAddr, SocketAddr},
     sync::{
-        Arc, Mutex, PoisonError,
+        Arc,
         atomic::{AtomicBool, Ordering},
     },
     time::Duration,
@@ -26,7 +25,12 @@ use tokio::{
     task::{JoinHandle, JoinSet},
 };
 
-use crate::{SshError, host_key, session::Connection, tasks::SshTasks};
+use crate::{
+    SshError, host_key,
+    limits::{AddressCounts, PreAuthLimits, PreAuthSlot},
+    session::Connection,
+    tasks::SshTasks,
+};
 
 /// How long open connections get to wind down after shutdown is requested.
 const SHUTDOWN_GRACE: Duration = Duration::from_secs(10);
@@ -41,25 +45,31 @@ pub(crate) struct Shared {
     pub(crate) transport: ProcessTransport,
     pub(crate) tasks: SshTasks,
     connections: Arc<Semaphore>,
-    per_ip: Mutex<HashMap<IpAddr, usize>>,
+    /// Open connections per address; IPv6 addresses are counted by their /64.
+    per_address: Arc<AddressCounts>,
+    /// Connections that have not authenticated yet, in total and per address.
+    preauth: PreAuthLimits,
 }
 
 impl Shared {
-    /// Admits a new connection from `ip` if the limits allow it.
-    fn admit(self: &Arc<Self>, ip: IpAddr) -> Option<ConnectionSlot> {
+    /// Admits a new connection from `ip` if the limits allow it. The pre-authentication
+    /// slot moves into the connection and is given up when it authenticates.
+    fn admit(self: &Arc<Self>, ip: IpAddr) -> Option<(ConnectionSlot, PreAuthSlot)> {
         if self.services.throttle.check_client(ThrottleScope::SshAuth, &ip.to_string()).is_err() {
             tracing::debug!(%ip, "SSH connection refused: too many failed attempts");
             return None;
         }
         let permit = Arc::clone(&self.connections).try_acquire_owned().ok()?;
-        let mut per_ip = self.per_ip.lock().unwrap_or_else(PoisonError::into_inner);
-        let count = per_ip.entry(ip).or_default();
-        if *count >= self.config.ssh.max_connections_per_ip {
+        let Some(preauth) = self.preauth.admit(ip) else {
+            tracing::debug!(%ip, "SSH connection refused: too many unauthenticated connections");
+            return None;
+        };
+        let key = AddressCounts::key(ip);
+        if !self.per_address.try_take(&key, self.config.ssh.max_connections_per_ip) {
             tracing::debug!(%ip, "SSH connection refused: too many connections from this address");
             return None;
         }
-        *count += 1;
-        Some(ConnectionSlot { shared: Arc::clone(self), ip, _permit: permit })
+        Some((ConnectionSlot { shared: Arc::clone(self), key, _permit: permit }, preauth))
     }
 }
 
@@ -67,19 +77,13 @@ impl Shared {
 #[derive(Debug)]
 struct ConnectionSlot {
     shared: Arc<Shared>,
-    ip: IpAddr,
+    key: String,
     _permit: OwnedSemaphorePermit,
 }
 
 impl Drop for ConnectionSlot {
     fn drop(&mut self) {
-        let mut per_ip = self.shared.per_ip.lock().unwrap_or_else(PoisonError::into_inner);
-        if let Some(count) = per_ip.get_mut(&self.ip) {
-            *count -= 1;
-            if *count == 0 {
-                per_ip.remove(&self.ip);
-            }
-        }
+        self.shared.per_address.release(&self.key);
     }
 }
 
@@ -140,7 +144,15 @@ pub async fn start(config: Arc<Config>, services: Services) -> Result<RunningSsh
     let transport = ProcessTransport::new(config.repository.git_binary.clone()).with_max_push_bytes(config.repository.max_push_bytes());
     let connections = Arc::new(Semaphore::new(config.ssh.max_connections.max(1)));
     let tasks = SshTasks::new();
-    let shared = Arc::new(Shared { config, services, transport, tasks: tasks.clone(), connections, per_ip: Mutex::new(HashMap::new()) });
+    let shared = Arc::new(Shared {
+        config,
+        services,
+        transport,
+        tasks: tasks.clone(),
+        connections,
+        per_address: Arc::new(AddressCounts::default()),
+        preauth: PreAuthLimits::new(),
+    });
 
     let (shutdown, shutdown_rx) = watch::channel(false);
     let task = tokio::spawn(accept_loop(listener, shared, russh_config, shutdown_rx));
@@ -176,11 +188,18 @@ async fn accept_loop(listener: TcpListener, shared: Arc<Shared>, russh_config: A
             Some(_) = connections.join_next(), if !connections.is_empty() => {}
             accepted = listener.accept() => match accepted {
                 Ok((socket, peer)) => {
-                    let Some(slot) = shared.admit(peer.ip()) else {
+                    let Some((slot, preauth)) = shared.admit(peer.ip()) else {
                         drop(socket);
                         continue;
                     };
-                    let connection = serve_connection(Arc::clone(&shared), Arc::clone(&russh_config), socket, peer, for_connections.clone());
+                    let connection = serve_connection(
+                        Arc::clone(&shared),
+                        Arc::clone(&russh_config),
+                        socket,
+                        peer,
+                        for_connections.clone(),
+                        preauth,
+                    );
                     shared.tasks.connection(&mut connections, async move {
                         connection.await;
                         drop(slot);
@@ -214,10 +233,11 @@ async fn serve_connection(
     socket: TcpStream,
     peer: SocketAddr,
     mut shutdown: watch::Receiver<bool>,
+    preauth: PreAuthSlot,
 ) {
     let auth_timeout = shared.config.ssh.auth_timeout();
     let authenticated = Arc::new(AtomicBool::new(false));
-    let Some(handler) = Connection::new(Arc::clone(&shared), peer, Arc::clone(&authenticated)) else { return };
+    let Some(handler) = Connection::new(Arc::clone(&shared), peer, Arc::clone(&authenticated), preauth) else { return };
     let stop = shared.tasks.cancellation().child_token();
     let close_stream = crate::socket::CloseOnDrop(stop.clone());
     let socket = crate::socket::CancellableSocket::new(socket, stop);

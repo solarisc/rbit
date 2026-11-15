@@ -43,6 +43,7 @@ mod fake_forge;
 #[path = "support/fault_schema.rs"]
 mod fault_schema;
 mod forks;
+mod git_password_budgets;
 // The hostile load regression group: workflow files.
 mod hostile_workflows;
 mod identity_races;
