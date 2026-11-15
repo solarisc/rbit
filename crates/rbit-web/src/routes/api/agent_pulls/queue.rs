@@ -77,7 +77,7 @@ pub async fn enqueue(
         Err(MergeFailure::HeadChanged | MergeFailure::BaseChanged) => {
             Err(ApiError::new(StatusCode::CONFLICT, format!("the head is {}", ctx.pull.head_sha)).with_code("head_changed"))
         }
-        Err(MergeFailure::Blocked(message)) => Err(ApiError::new(StatusCode::METHOD_NOT_ALLOWED, message)),
+        Err(MergeFailure::Blocked(blocked)) => Err(ApiError::blocked(blocked)),
         Err(MergeFailure::Service(error)) => Err(error.into()),
     }
 }

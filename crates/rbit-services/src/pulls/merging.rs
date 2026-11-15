@@ -40,7 +40,7 @@ use super::{PullContext, PullService, ReviewData, merge_lock};
 use crate::{RepoContext, ServiceError, audit::AuditEntry, audit::AuditService};
 
 mod contracts;
-pub use contracts::{MergeBox, MergeFailure, MergeInput, MergeReadiness};
+pub use contracts::{Blocked, CONFLICT_FIX, MergeBox, MergeFailure, MergeInput, MergeReadiness, merge_codes};
 
 impl PullService {
     /// The merge box of `ctx` for `viewer`.
@@ -212,18 +212,18 @@ impl PullService {
             return Err(MergeFailure::BaseChanged);
         }
         if ctx.pull.is_merged() || !ctx.issue().is_open() {
-            return Err(MergeFailure::Blocked("the pull request is closed".to_owned()));
+            return Err(MergeFailure::Blocked(Blocked::pull_closed()));
         }
         let mut merge_box = self.merge_box(Some(actor), &ctx).await?;
         if needs_trial_merge(merge_box.mergeable, true, ctx.pull.is_draft) {
             // Not computed yet for this base: compute it now rather than make the merger wait.
-            let base_tip = self.base_tip(&ctx).await?.ok_or_else(|| MergeFailure::Blocked("the base branch does not exist".to_owned()))?;
+            let base_tip = self.base_tip(&ctx).await?.ok_or_else(|| MergeFailure::Blocked(Blocked::missing_base()))?;
             let (state, paths) = self.trial_merge(ctx.repo(), &base_tip, &ctx.pull.head_sha).await?;
             self.ctx().database.pulls().set_mergeability(ctx.issue().id, state, &base_tip, &ctx.pull.head_sha, &paths).await?;
             let refreshed = self.context(threads.open(Some(actor), ctx.repo().clone(), ctx.issue().number).await?).await?;
             merge_box = self.merge_box(Some(actor), &refreshed).await?;
         }
-        if merge_gate(&merge_box.evaluation, input.bypass).map_err(MergeFailure::Blocked)? {
+        if merge_gate(&merge_box.evaluation, input.bypass).map_err(|u| MergeFailure::Blocked(Blocked::unmet(u, &merge_box.rules)))? {
             AuditService::from_store(self.ctx().database.audit())
                 .record(AuditEntry::new(AuditAction::BranchProtectionBypassed).by(actor).on(ctx.repo().repo.full_name()).detail(format!(
                     "merged pull request #{} into {}",
@@ -265,7 +265,7 @@ impl PullService {
         let mut attempt = 0;
         let (commit, base_tip) = loop {
             attempt += 1;
-            let base_tip = self.base_tip(ctx).await?.ok_or_else(|| MergeFailure::Blocked("the base branch does not exist".to_owned()))?;
+            let base_tip = self.base_tip(ctx).await?.ok_or_else(|| MergeFailure::Blocked(Blocked::missing_base()))?;
             let spec = MergeSpec {
                 repo: &repo.disk_path,
                 base_branch: &ctx.pull.base_branch,
@@ -280,16 +280,18 @@ impl PullService {
             match merge(&env, &spec).await {
                 Ok(result) => break (result.commit, base_tip),
                 Err(MergeError::BaseMoved) if attempt == 1 => {}
-                Err(MergeError::BaseMoved) => return Err(MergeFailure::Blocked("the base branch changed; try again".to_owned())),
+                Err(MergeError::BaseMoved) => return Err(MergeFailure::Blocked(Blocked::base_changed())),
                 Err(MergeError::Conflict(paths)) => {
                     self.ctx()
                         .database
                         .pulls()
                         .set_mergeability(ctx.issue().id, Mergeability::Conflict, &base_tip, &ctx.pull.head_sha, &paths)
                         .await?;
-                    return Err(MergeFailure::Blocked(format!("the merge has conflicts in {}", paths.join(", "))));
+                    return Err(MergeFailure::Blocked(Blocked::conflicts(&paths)));
                 }
-                Err(error @ (MergeError::NothingToMerge | MergeError::Unrelated)) => return Err(MergeFailure::Blocked(error.to_string())),
+                Err(error @ (MergeError::NothingToMerge | MergeError::Unrelated)) => {
+                    return Err(MergeFailure::Blocked(Blocked::for_merge_error(&error)));
+                }
                 Err(error) => return Err(ServiceError::internal(error).into()),
             }
         };

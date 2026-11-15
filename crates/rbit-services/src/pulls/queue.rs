@@ -44,7 +44,7 @@ use rbit_storage::sqlite::{
     pulls::MergeRecord,
 };
 
-use super::{MergeBox, MergeFailure, PullContext, PullService, merge_lock};
+use super::{Blocked, MergeBox, MergeFailure, PullContext, PullService, merge_lock};
 use crate::{RepoContext, ServiceError};
 
 /// How often every line with entries is looked at again.
@@ -77,7 +77,7 @@ fn strategy_of(name: &str) -> MergeStrategy {
 /// What a pull request still lacks to be queued or to land, but its checks: the queue tests
 /// those itself, and a conflict check still running is no reason to wait (building the
 /// candidate finds a conflict).
-fn unmet_requirements(merge_box: &MergeBox) -> Vec<String> {
+fn unmet_requirements(merge_box: &MergeBox) -> Vec<Requirement> {
     merge_box
         .evaluation
         .checks
@@ -89,7 +89,7 @@ fn unmet_requirements(merge_box: &MergeBox) -> Vec<String> {
                     Requirement::RequiredChecks(_) | Requirement::Checks(_) | Requirement::NoConflicts(Mergeability::Unknown)
                 )
         })
-        .map(|check| check.requirement.describe(false))
+        .map(|check| check.requirement)
         .collect()
 }
 
@@ -111,9 +111,9 @@ impl PullService {
         if expected_head.is_some_and(|expected| !ctx.pull.head_sha.starts_with(expected)) {
             return Err(MergeFailure::HeadChanged);
         }
-        let unmet = unmet_requirements(&self.merge_box(Some(actor), ctx).await?);
-        if !unmet.is_empty() {
-            return Err(MergeFailure::Blocked(unmet.join("; ")));
+        let merge_box = self.merge_box(Some(actor), ctx).await?;
+        if let Some(first) = unmet_requirements(&merge_box).into_iter().next() {
+            return Err(MergeFailure::Blocked(Blocked::unmet(Some(first), &merge_box.rules)));
         }
         let store = self.ctx().database.actions_runs();
         let new = NewEntry {
@@ -232,7 +232,8 @@ impl PullService {
         let merge_box = self.merge_box(Some(&user), &ctx).await?;
         let unmet = unmet_requirements(&merge_box);
         if !unmet.is_empty() {
-            return self.leave(&entry, "failed", &format!("no longer ready: {}", unmet.join("; "))).await;
+            let reasons: Vec<String> = unmet.iter().map(|requirement| requirement.describe(false)).collect();
+            return self.leave(&entry, "failed", &format!("no longer ready: {}", reasons.join("; "))).await;
         }
         if ctx.pull.head_sha != entry.head_sha {
             return self.leave(&entry, "failed", "the head moved after it was queued; queue it again").await;

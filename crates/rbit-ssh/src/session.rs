@@ -40,6 +40,7 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use crate::{
     access::{self, KEY_NO_LONGER_AUTHORIZED, internal, same_key_holder},
     command::{self, GitCommand, LfsAuthenticate},
+    limits::PreAuthSlot,
     server::Shared,
 };
 
@@ -69,6 +70,9 @@ pub(crate) struct Connection {
     shared: Arc<Shared>,
     peer: SocketAddr,
     authenticated: Arc<AtomicBool>,
+    /// Held until the client authenticates, then given up so the address and the total
+    /// regain an unauthenticated slot.
+    preauth: Option<PreAuthSlot>,
     identity: Option<SshIdentity>,
     fingerprint: Option<String>,
     channels: HashMap<ChannelId, PendingChannel>,
@@ -78,12 +82,13 @@ pub(crate) struct Connection {
 }
 
 impl Connection {
-    pub(crate) fn new(shared: Arc<Shared>, peer: SocketAddr, authenticated: Arc<AtomicBool>) -> Option<Self> {
+    pub(crate) fn new(shared: Arc<Shared>, peer: SocketAddr, authenticated: Arc<AtomicBool>, preauth: PreAuthSlot) -> Option<Self> {
         let lifetime = shared.tasks.handler_token()?;
         Some(Self {
             shared,
             peer,
             authenticated,
+            preauth: Some(preauth),
             identity: None,
             fingerprint: None,
             channels: HashMap::new(),
@@ -204,6 +209,8 @@ impl Handler for Connection {
         self.identity = Some(identity);
         self.fingerprint = Some(rbit_services::ssh_keys::fingerprint(key));
         self.authenticated.store(true, Ordering::Release);
+        // Authenticated: this connection no longer counts against the unauthenticated caps.
+        self.preauth = None;
         Ok(Auth::Accept)
     }
 

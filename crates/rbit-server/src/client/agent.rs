@@ -22,11 +22,19 @@ pub struct ApiFailure {
     pub status: u16,
     pub code: String,
     pub message: String,
+    /// The rule or setting that refused the request, when the body names one.
+    pub rule: Option<String>,
+    /// What would make the request pass, when the body names one.
+    pub remediation: Option<String>,
 }
 
 impl fmt::Display for ApiFailure {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} ({})", self.message, self.status)
+        write!(f, "{} ({})", self.message, self.status)?;
+        if let Some(remediation) = &self.remediation {
+            write!(f, "\n  fix: {remediation}")?;
+        }
+        Ok(())
     }
 }
 
@@ -43,7 +51,9 @@ impl ApiFailure {
             (_, Some(message)) => with_field_errors(message, parsed.as_ref()),
             _ => format!("the server answered {status}"),
         };
-        Self { status, code, message }
+        let rule = field("rule");
+        let remediation = field("remediation");
+        Self { status, code, message, rule, remediation }
     }
 }
 
@@ -126,7 +136,21 @@ pub fn exit_code(error: &anyhow::Error) -> i32 {
         "head_changed" | "base_changed" | "conflict" => 5,
         "pending" | "timeout" | "no_runner" => 8,
         "log_incomplete" | "unavailable" | "internal" | "rate_limited" | "indeterminate" => 9,
-        _ => 1,
+        // A precise code the table does not name (`token_scope_insufficient`, `repository_archived`,
+        // `protected_branch_force_push`, ...) keeps the exit code its status implies.
+        _ => error.downcast_ref::<ApiFailure>().and_then(|failure| status_exit_code(failure.status)).unwrap_or(1),
+    }
+}
+
+/// The exit code a refused request's HTTP status implies, for a code the table does not name.
+fn status_exit_code(status: u16) -> Option<i32> {
+    match status {
+        401 | 403 => Some(3),
+        404 | 410 => Some(4),
+        409 | 412 => Some(5),
+        422 => Some(2),
+        429 | 500..=599 => Some(9),
+        _ => None,
     }
 }
 
@@ -146,6 +170,15 @@ pub fn print(schema: &str, body: Value) {
 /// The error object of `error`.
 pub fn error_body(error: &anyhow::Error) -> Value {
     let mut body = json!({ "schema": "rbit.error/1", "code": code_of(error), "message": format!("{error:#}") });
+    if let Some(failure) = error.downcast_ref::<ApiFailure>() {
+        body["message"] = Value::String(failure.message.clone());
+        if let Some(rule) = &failure.rule {
+            body["rule"] = Value::String(rule.clone());
+        }
+        if let Some(remediation) = &failure.remediation {
+            body["remediation"] = Value::String(remediation.clone());
+        }
+    }
     if let Some(outcome) = error.downcast_ref::<Outcome>() {
         body["message"] = Value::String(outcome.message.clone());
         if let Some(hint) = &outcome.hint {
@@ -174,6 +207,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn refusals_carry_their_rule_and_remediation() {
+        let body = r#"{"message":"protected branch: changes must go through a pull request","code":"protected_branch_requires_pull_request","rule":"branch protection main (require_pull_request)","remediation":"Push a branch and open a pull request."}"#;
+        let failure = ApiFailure::from_response(405, body);
+        assert_eq!(failure.code, "protected_branch_requires_pull_request");
+        assert_eq!(failure.rule.as_deref(), Some("branch protection main (require_pull_request)"));
+        assert_eq!(failure.remediation.as_deref(), Some("Push a branch and open a pull request."));
+        let shown = error_body(&anyhow::Error::from(failure));
+        assert_eq!(shown["code"], "protected_branch_requires_pull_request");
+        assert_eq!(shown["remediation"], "Push a branch and open a pull request.");
+    }
+
+    #[test]
     fn refusals_keep_the_servers_code_or_imply_one() {
         let failure = ApiFailure::from_response(409, r#"{"message":"Head branch was modified.","code":"head_changed"}"#);
         assert_eq!((failure.code.as_str(), failure.message.as_str()), ("head_changed", "Head branch was modified."));
@@ -187,12 +232,22 @@ mod tests {
 
     #[test]
     fn exit_codes_follow_the_contract() {
-        let api = |status, code: &str| anyhow::Error::from(ApiFailure { status, code: code.to_owned(), message: String::new() });
+        let api = |status, code: &str| {
+            anyhow::Error::from(ApiFailure { status, code: code.to_owned(), message: String::new(), rule: None, remediation: None })
+        };
         assert_eq!(exit_code(&api(404, "not_found")), 4);
         assert_eq!(exit_code(&api(401, "unauthenticated")), 3);
         assert_eq!(exit_code(&api(409, "head_changed")), 5);
         assert_eq!(exit_code(&api(422, "invalid")), 2);
         assert_eq!(exit_code(&api(503, "unavailable")), 9);
+        // Precise codes keep the exit code of their status: a refused push or write is not allowed (3);
+        // a blocked merge is a failure (1), as the generic code always was.
+        assert_eq!(exit_code(&api(403, "token_scope_insufficient")), 3);
+        assert_eq!(exit_code(&api(403, "protected_branch_force_push")), 3);
+        assert_eq!(exit_code(&api(403, "repository_archived")), 3);
+        assert_eq!(exit_code(&api(405, "merge_checks_required")), 1);
+        assert_eq!(exit_code(&api(405, "blocked")), 1);
+        assert_eq!(exit_code(&api(409, "merge_conflicts")), 5);
         assert_eq!(exit_code(&outcome("pending", "no run yet", None)), 8);
         assert_eq!(exit_code(&outcome("no_runner", "no runner has `gpu`", None)), 8);
         assert_eq!(exit_code(&outcome("log_incomplete", "cut", None)), 9);

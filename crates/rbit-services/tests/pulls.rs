@@ -1,6 +1,7 @@
 //! The pull request service against real repositories: creation across a fork,
 //! `refs/pull/{n}/head`, pushes to head and base, mergeability, reviews, every merge
 //! strategy, reopening rules and webhook payloads.
+mod fork_visibility;
 mod queue;
 use std::{path::Path, process::Command, sync::Arc};
 
@@ -36,7 +37,6 @@ fn commit(dir: &Path, file: &str, contents: &str, message: &str) -> String {
     git(dir, &["commit", "-q", "-m", message]);
     git(dir, &["rev-parse", "HEAD"])
 }
-
 struct Fixture {
     _dir: tempfile::TempDir,
     database: Database,
@@ -649,7 +649,7 @@ async fn branch_protection_gates_merges_and_head_branch_deletion() {
     assert!(merge_box.rules.is_protected() && merge_box.evaluation.is_blocked() && !merge_box.evaluation.can_merge());
     assert!(!merge_box.can_delete_head, "the head branch is protected against deletion");
     let refused = pulls.merge(&fixture.alice, &ctx, Fixture::merge_input(MergeStrategy::Squash)).await.unwrap_err();
-    assert!(matches!(&refused, MergeFailure::Blocked(message) if message.contains("approval")), "{refused}");
+    assert!(matches!(&refused, MergeFailure::Blocked(message) if message.message.contains("approval")), "{refused}");
     let bypass = MergeInput { bypass: true, ..Fixture::merge_input(MergeStrategy::Squash) };
     assert!(
         matches!(pulls.merge(&fixture.alice, &ctx, bypass).await, Err(MergeFailure::Blocked(_))),
@@ -781,7 +781,7 @@ async fn required_status_checks_gate_merges_and_statuses_wake_the_worker() {
     };
     assert_eq!(line(&merge_box), "Waiting for 1 of 1 required checks");
     let refused = pulls.merge(&fixture.alice, &ctx, Fixture::merge_input(MergeStrategy::Merge)).await.unwrap_err();
-    assert!(matches!(&refused, MergeFailure::Blocked(message) if message.contains("required checks")), "{refused}");
+    assert!(matches!(&refused, MergeFailure::Blocked(message) if message.message.contains("required checks")), "{refused}");
 
     // Statuses on the fork's head are posted to the base repository.
     statuses.create(&fixture.alice, &repo, &head, &post("failure", "ci")).await.unwrap();

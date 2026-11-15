@@ -24,8 +24,8 @@ mod rules;
 
 pub use application::{Principal, ProtectionGate, RuleDraft, RuleManagement, RuleScope};
 pub use decision::{
-    BranchChange, Bypass, MergeRules, PULL_REFS, PushDecision, PushVerdict, Pusher, RefChange, Refusal, decide_push, is_protected,
-    may_delete, merge_rules, reasons,
+    BranchChange, Bypass, MergeRules, PULL_REFS, PushDecision, PushVerdict, Pusher, RefChange, Refusal, codes, decide_push, is_protected,
+    may_delete, merge_rules, meta, reasons,
 };
 pub(crate) use pattern::namespace_refusal;
 pub use pattern::{BranchPattern, MAX_PATTERN_LEN, PatternError};

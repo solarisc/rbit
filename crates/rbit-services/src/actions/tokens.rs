@@ -33,7 +33,7 @@ use rbit_auth::TaskTokenSecret;
 use rbit_core::{
     RefUpdate, RepoAccess, RepoId,
     actions::{JobId, PermissionLevel, RunId, TaskId, TokenPermissions, token_permissions},
-    protection::Refusal,
+    protection::{Refusal, codes},
 };
 use rbit_repositories::aliases::RepositoryAliases;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt, ReadBuf};
@@ -176,8 +176,12 @@ impl ActionsService {
     ) -> Result<Vec<Refusal>, ServiceError> {
         let mut refusals = Vec::new();
         for update in updates.iter().filter(|update| update.name.starts_with("refs/tags/") && update.before.is_some()) {
-            refusals
-                .push(Refusal { name: update.name.clone(), reason: "a workflow task may not move or delete an existing tag".to_owned() });
+            refusals.push(Refusal::new(
+                update.name.clone(),
+                codes::TASK_TAG,
+                "a workflow task may not move or delete an existing tag",
+                "Push a new tag name instead; a workflow task never moves a tag.",
+            ));
         }
         if !pack {
             return Ok(refusals);
@@ -197,7 +201,14 @@ impl ActionsService {
             tracing::info!(repo = %repo.repo.full_name(), stderr = %String::from_utf8_lossy(&indexed.stderr), "task push: the pack does not index");
             return Ok(updates
                 .iter()
-                .map(|update| Refusal { name: update.name.clone(), reason: "the pushed pack could not be read".to_owned() })
+                .map(|update| {
+                    Refusal::new(
+                        update.name.clone(),
+                        codes::PACK_UNREADABLE,
+                        "the pushed pack could not be read",
+                        "Retry the push; if it keeps failing, check the pack locally with git fsck.",
+                    )
+                })
                 .collect());
         }
         for update in updates {
@@ -215,10 +226,12 @@ impl ActionsService {
                 return Err(ServiceError::Invalid(format!("the pushed commits of {} could not be read", update.name)));
             }
             if !String::from_utf8_lossy(&output.stdout).trim().is_empty() {
-                refusals.push(Refusal {
-                    name: update.name.clone(),
-                    reason: "a workflow task may not create, change or delete workflow files".to_owned(),
-                });
+                refusals.push(Refusal::new(
+                    update.name.clone(),
+                    codes::TASK_WORKFLOW,
+                    "a workflow task may not create, change or delete workflow files",
+                    "Make workflow file changes as a person, not from a workflow task.",
+                ));
             }
         }
         Ok(refusals)

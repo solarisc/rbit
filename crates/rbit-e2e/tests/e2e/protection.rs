@@ -28,7 +28,7 @@ fn rewrite(git: &Git, dir: &Path) -> String {
 }
 
 /// Adds the rule described by `fields` (checkbox names map to `"on"`); returns its page.
-async fn add_rule(client: &Client, repo: &str, fields: &[(&str, &str)]) -> String {
+pub(super) async fn add_rule(client: &Client, repo: &str, fields: &[(&str, &str)]) -> String {
     let response = client.post(&format!("/{repo}/settings/branches"), fields).await;
     response.expect_status(StatusCode::SEE_OTHER);
     let location = response.location().expect("redirects to the rule").to_owned();
@@ -93,7 +93,7 @@ async fn protected_branches_over_http() {
 
     // Deleting it is rejected, with the reason.
     let refused = git.fails(&work, &["push", "origin", ":main"]);
-    assert!(refused.contains("protected branch: deleting it is not allowed"), "{refused}");
+    assert!(refused.contains("[protected_branch_deletion] protected branch: deleting it is not allowed"), "{refused}");
     assert!(refused.contains("rbit: refs/heads/main"), "the side band explains it: {refused}");
     assert_eq!(remote_branch(&git, &work, "main").as_deref(), Some(sample.head.as_str()));
 
@@ -105,7 +105,7 @@ async fn protected_branches_over_http() {
 
     // refs/pull/ belongs to rbit.
     let refused = git.fails(&work, &["push", "origin", "feature:refs/pull/1/head"]);
-    assert!(refused.contains("refs/pull/ is managed by rbit"), "{refused}");
+    assert!(refused.contains("[ref_reserved] refs/pull/ is managed by rbit"), "{refused}");
 
     // Pushes are all or nothing: the allowed update of feature is declined with the deletion.
     let next = git.commit_file(&work, "more.txt", "more\n");
@@ -122,7 +122,7 @@ async fn protected_branches_over_http() {
     let bobs = git.clone(&server.git_url_as("alice", "demo", "bob", PASSWORD));
     git.commit_file(&bobs, "bob.txt", "bob\n");
     let refused = git.fails(&bobs, &["push", "origin", "main"]);
-    assert!(refused.contains("protected branch: you are not allowed to push to it"), "{refused}");
+    assert!(refused.contains("[protected_branch_restricted] protected branch: you are not allowed to push to it"), "{refused}");
     assert!(!refused.contains("carol"), "refusals never say who is allowed");
     let carols = git.clone(&server.git_url_as("alice", "demo", "carol", PASSWORD));
     let carol_head = git.commit_file(&carols, "carol.txt", "carol\n");
@@ -135,7 +135,10 @@ async fn protected_branches_over_http() {
     git.ok(&carols, &["checkout", "--quiet", "-b", "release/1.0", "origin/main"]);
     git.commit_file(&carols, "fix.txt", "fix\n");
     let refused = git.fails(&carols, &["push", "origin", "release/1.0"]);
-    assert!(refused.contains("protected branch: changes must go through a pull request"), "{refused}");
+    assert!(
+        refused.contains("[protected_branch_requires_pull_request] protected branch: changes must go through a pull request"),
+        "{refused}"
+    );
     alice.get("/alice/demo/settings/branches").await.expect_contains(&[">1 approval<", "Matches release/1.0"]);
 
     // The owner is held to the rules too, until the rule lets administrators bypass it.
@@ -183,7 +186,9 @@ async fn clients_without_report_status_get_a_403() {
     body.extend_from_slice(b"0000");
     let content_type = "application/x-git-receive-pack-request";
     let refused = server.client().post_basic("/alice/demo.git/git-receive-pack", "alice", PASSWORD, content_type, body).await;
-    refused.expect_status(StatusCode::FORBIDDEN).expect_contains(&["refs/heads/main: protected branch: deleting it is not allowed"]);
+    refused
+        .expect_status(StatusCode::FORBIDDEN)
+        .expect_contains(&["refs/heads/main: [protected_branch_deletion] protected branch: deleting it is not allowed"]);
 
     // A malformed command list is a 400, not a git error.
     let garbage = server.client().post_basic("/alice/demo.git/git-receive-pack", "alice", PASSWORD, content_type, b"zzzz".to_vec()).await;

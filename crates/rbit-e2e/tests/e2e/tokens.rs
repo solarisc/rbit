@@ -45,7 +45,12 @@ async fn token_scopes_cap_git_access_and_revocation_is_immediate() {
     let refused = git.fails(&clone, &["push", &server.git_url_as("alice", "vault", "alice", &read), "HEAD:refs/heads/main"]);
     assert!(refused.contains("403"), "a read token gets 403 on push: {refused}");
     let receive = "/alice/vault.git/info/refs?service=git-receive-pack";
-    server.client().get_basic(receive, "alice", &read).await.expect_status(StatusCode::FORBIDDEN);
+    server
+        .client()
+        .get_basic(receive, "alice", &read)
+        .await
+        .expect_status(StatusCode::FORBIDDEN)
+        .expect_contains(&["[token_scope_insufficient]"]);
     git.ok(&clone, &["push", "--quiet", &server.git_url_as("alice", "vault", "alice", &write), "HEAD:refs/heads/main"]);
 
     // Revoked tokens stop working at once; the other token is unaffected.
@@ -99,4 +104,25 @@ async fn tokens_belong_to_their_owner() {
     bob.post(&url, &[]).await.expect_status(StatusCode::NOT_FOUND);
     assert!(!bob.get("/settings/tokens").await.contains("alices-laptop"));
     alice.get("/settings/tokens").await.expect_contains(&["alices-laptop"]);
+}
+
+/// An API refusal names its stable code, the rule that refused and what would make it pass.
+#[tokio::test]
+async fn api_refusals_name_their_code_rule_and_remediation() {
+    let server = TestServer::start();
+    let alice = server.sign_up("alice").await;
+    let read = alice.create_token("api-read", "read").await;
+    let http = reqwest::Client::builder().no_proxy().build().expect("API client");
+    let response = http
+        .post(server.url("/api/v1/user/repos"))
+        .header("authorization", format!("Bearer {read}"))
+        .json(&serde_json::json!({ "name": "scoped" }))
+        .send()
+        .await
+        .expect("the API answers");
+    assert_eq!(response.status(), reqwest::StatusCode::FORBIDDEN);
+    let body: serde_json::Value = response.json().await.expect("a JSON error");
+    assert_eq!(body["code"], "token_scope_insufficient", "{body}");
+    assert_eq!(body["rule"], "token scope read", "{body}");
+    assert!(body["remediation"].as_str().is_some_and(|fix| fix.contains("write scope")), "{body}");
 }

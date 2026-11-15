@@ -13,7 +13,10 @@
 use rbit_core::{IssueNumber, PushSource, Timestamp, User, pull::CommitIdentity, pull::noreply_domain};
 use rbit_git::merge::{MergeError, candidate::land, writes};
 
-use super::{MergeFailure, NewPullInput, PullContext, PullService};
+use super::{
+    Blocked, MergeFailure, NewPullInput, PullContext, PullService,
+    merging::{CONFLICT_FIX, merge_codes},
+};
 use crate::{RepoContext, ServiceError};
 
 impl PullService {
@@ -29,8 +32,8 @@ impl PullService {
         if !repo.can_write_content() {
             return Err(ServiceError::Forbidden.into());
         }
-        if let Some(reason) = self.inner.protection.authorize_branch_write(repo, actor, branch).await? {
-            return Err(MergeFailure::Blocked(reason));
+        if let Some(refusal) = self.inner.protection.authorize_branch_write(repo, actor, branch).await? {
+            return Err(MergeFailure::Blocked(Blocked::from_refusal(refusal)));
         }
         Ok(())
     }
@@ -39,13 +42,17 @@ impl PullService {
     /// head. Only a head branch in the base repository can be updated.
     pub async fn update_branch(&self, actor: &User, ctx: &PullContext, expected_head: &str) -> Result<String, MergeFailure> {
         if ctx.head_repo.as_ref().is_some_and(|head| head.repo.id != ctx.repo().repo.repo.id) {
-            return Err(MergeFailure::Blocked("a head branch in another repository cannot be updated from here".to_owned()));
+            return Err(MergeFailure::Blocked(Blocked::new(
+                merge_codes::HEAD_IN_OTHER_REPOSITORY,
+                "a head branch in another repository cannot be updated from here",
+                "Update the branch in its own repository.",
+            )));
         }
         if !ctx.pull.head_sha.starts_with(expected_head) {
             return Err(MergeFailure::HeadChanged);
         }
         self.may_write(ctx.repo(), actor, &ctx.pull.head_branch).await?;
-        let base_tip = self.base_tip(ctx).await?.ok_or_else(|| MergeFailure::Blocked("the base branch does not exist".to_owned()))?;
+        let base_tip = self.base_tip(ctx).await?.ok_or_else(|| MergeFailure::Blocked(Blocked::missing_base()))?;
         let pending = self.inner.pushes.begin(ctx.repo(), PushSource::User(actor.id())).await;
         let lease = self.ctx().repositories.lease(ctx.repo().repo.repo.id).await;
         let merged = writes::update_branch(
@@ -62,7 +69,10 @@ impl PullService {
             Ok(merged) => merged.commit,
             Err(MergeError::NothingToMerge) => return Ok(ctx.pull.head_sha.clone()),
             Err(MergeError::BaseMoved) => return Err(MergeFailure::HeadChanged),
-            Err(MergeError::Conflict(paths)) => return Err(MergeFailure::Blocked(format!("the base conflicts in {}", paths.join(", ")))),
+            Err(MergeError::Conflict(paths)) => {
+                let message = format!("the base conflicts in {}", paths.join(", "));
+                return Err(MergeFailure::Blocked(Blocked::new(merge_codes::CONFLICTS, message, CONFLICT_FIX)));
+            }
             Err(error) => return Err(ServiceError::internal(error).into()),
         };
         self.inner.pushes.complete(pending).await;
@@ -99,11 +109,19 @@ impl PullService {
         drop(lease);
         match reverted {
             Ok(_) => {}
-            Err(MergeError::BaseMoved) => return Err(MergeFailure::Blocked(format!("branch `{branch}` exists already"))),
-            Err(MergeError::Conflict(paths)) => {
-                return Err(MergeFailure::Blocked(format!("the revert conflicts with `{base}` in {}", paths.join(", "))));
+            Err(MergeError::BaseMoved) => {
+                let message = format!("branch `{branch}` exists already");
+                return Err(MergeFailure::Blocked(Blocked::new(merge_codes::BRANCH_EXISTS, message, "Choose another branch name.")));
             }
-            Err(error @ (MergeError::NothingToMerge | MergeError::Failed(_))) => return Err(MergeFailure::Blocked(error.to_string())),
+            Err(MergeError::Conflict(paths)) => {
+                let message = format!("the revert conflicts with `{base}` in {}", paths.join(", "));
+                return Err(MergeFailure::Blocked(Blocked::new(merge_codes::CONFLICTS, message, CONFLICT_FIX)));
+            }
+            Err(error @ (MergeError::NothingToMerge | MergeError::Failed(_))) => {
+                let code =
+                    if matches!(error, MergeError::NothingToMerge) { merge_codes::NOTHING_TO_MERGE } else { merge_codes::MERGE_FAILED };
+                return Err(MergeFailure::Blocked(Blocked::new(code, error.to_string(), "Push a commit the base does not already have.")));
+            }
             Err(error) => return Err(ServiceError::internal(error).into()),
         }
         self.inner.pushes.complete(pending).await;
@@ -130,13 +148,21 @@ impl PullService {
         expected: &str,
     ) -> Result<(), MergeFailure> {
         if let Some(reason) = crate::protection::ProtectionService::reserved_branch_refusal(branch) {
-            return Err(MergeFailure::Blocked(reason.to_owned()));
+            return Err(MergeFailure::Blocked(Blocked::new(
+                rbit_core::protection::codes::REF_RESERVED,
+                reason,
+                "Choose a branch name that does not start with refs/ or merge-queue/.",
+            )));
         }
         self.may_write(repo, actor, branch).await?;
         let commit = repo.reader.commit_id(commit.to_owned()).await.map_err(ServiceError::from)?;
         let keeps_tip = repo.reader.is_ancestor(expected.to_owned(), commit.clone()).await.unwrap_or(false);
         if !keeps_tip && self.inner.protection.denies_force_push(repo, actor, branch).await? {
-            return Err(MergeFailure::Blocked("force pushes denied".to_owned()));
+            return Err(MergeFailure::Blocked(Blocked::new(
+                rbit_core::protection::codes::PROTECTED_FORCE_PUSH,
+                "force pushes denied",
+                "Merge without rewriting the branch, or ask an administrator to change the rule.",
+            )));
         }
         let pending = self.inner.pushes.begin(repo, PushSource::User(actor.id())).await;
         let lease = self.ctx().repositories.lease(repo.repo.repo.id).await;

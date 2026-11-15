@@ -55,7 +55,9 @@ A failure with `--json` is an object too:
 `{"schema":"rbit.error/1","code":"pending","message":"…","hint":"rbit run watch --sha …"}`.
 `code` is the server's (every API error body has one: `not_found`, `unauthenticated`,
 `forbidden`, `conflict`, `head_changed`, `base_changed`, `blocked`, `invalid`,
-`rate_limited`, `unavailable`, …) or the client's own (`pending`, `timeout`, `usage`). A
+`rate_limited`, `unavailable`, …; a refusal names a precise one such as
+`protected_branch_force_push`, with `rule` and `remediation` fields, see
+[error codes](error-codes.md)) or the client's own (`pending`, `timeout`, `usage`). A
 `hint` is a command that can be run as it is. A read the server throttles (`429` with a
 `Retry-After` of at most 30 seconds) is tried again after that wait, up to three times, so a
 long `run watch` survives a busy moment; a write is never repeated.
@@ -73,6 +75,8 @@ The exit code says what kind of answer it was, with or without `--json`:
 | 8 | pending, or a wait that timed out |
 | 9 | the answer cannot be trusted: a log cut short, the server unavailable |
 
+A precise error code the table does not name keeps the exit code its HTTP status implies: 401 and 403 exit 3, 404 exits 4, 409 exits 5, 422 exits 2, 429 and 5xx exit 9, and any other status exits 1. So a refused push (`token_scope_insufficient`, `protected_branch_force_push`) exits 3 and a merge that waits for a check (`merge_checks_required`) exits 1.
+
 ## Where am I
 
 ```bash
@@ -88,6 +92,33 @@ that name only events rbit never starts runs for),
 `not_started`, `queued`, `running`, `failure` (as soon as one job failed, even while others
 run), `indeterminate` (nobody can say why the jobs failed: a lost runner, a log cut short),
 `cancelled` and `success`, so "nothing yet" is never confused with "nothing expected".
+
+## Push preflight
+
+```bash
+rbit preflight push [--ref BRANCH] [--new REV]
+```
+
+Asks the server whether this credential may push `--new` (the checkout's `HEAD` by default)
+to `--ref` (`main` by default), and changes nothing. The server runs the same checks a real push
+runs, in the same order (token scope, write access, mirror, then the push gate), against the
+branch's head on the server. `old` is that head as this command read it; a head that moved in
+between is a `409 conflict`. The answer lists each refusal with its
+[error code](error-codes.md), the rule that refused and the fix.
+
+Whether the update is a force push is decided by the server when `--new` is already in the
+repository: the server checks that the old head is an ancestor of the new commit. Only a commit the
+server has yet does the client's declaration count, and this command declares a force push when
+the old head is not an ancestor of `--new` in this checkout. A pull mirror refuses every push
+(`repository_mirror`), and a personal access token without the write scope is refused
+(`token_scope_insufficient`) before the rules are consulted. Exit 0 when the push would be
+allowed, 3 when it would be refused. `--json` prints `rbit.preflight/1`.
+
+The REST form is `GET /api/v1/repos/{owner}/{repo}/agent/preflight/push?ref=refs/heads/…&old=&new=&force=`,
+answering `{"allowed": bool, "refusals": [{"ref", "code", "message", "rule", "remediation"}]}`. It
+answers `409 conflict` when `old` is not the branch's head, and a `403` only for a workflow task
+credential, which is refused by the API before any rule is read. A deploy key cannot call the
+API, so preflight does not answer for one.
 
 ## Workflow runs
 
@@ -128,6 +159,12 @@ or cancelled), each line prefixed with its job's name. `rerun --job` wins over `
 when both are given; `rerun` without a run id reruns every failed or cancelled run of `--sha`
 or `HEAD`; while its run has not finished it says so (`pending`, exit 8) rather than that
 nothing failed, and so does `rerun RUN` for a run that has not finished.
+
+`run watch --branch NAME` without `--sha` watches the commit at the tip of `NAME` on the
+server, not the checkout's `HEAD`: the tip is read from `GET /repos/{owner}/{repo}/branches/{NAME}`,
+and a branch the server does not have is a usage error (exit 2) that says to push it or to
+pass `--sha`. With `--sha`, that commit is watched and `--branch` only names the branch whose
+move ends the watch. With neither, the watch follows `HEAD` and the current branch.
 
 A job that uploads its JUnit report as an artifact named `rbit-test-report`, or that name
 with a suffix such as `rbit-test-report-${{ matrix.os }}` since a run's artifact names are

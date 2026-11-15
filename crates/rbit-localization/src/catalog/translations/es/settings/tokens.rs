@@ -14,6 +14,8 @@ entries! { Es:
         TokensMessage::Copy => text.literal("Copiar"),
         TokensMessage::NewToken => text.literal("Nuevo token"),
         TokensMessage::Name => text.literal("Nombre"),
+        TokensMessage::CurrentPassword => text.literal("Contraseña actual"),
+        TokensMessage::PasswordHint => text.literal("Las credenciales solo se pueden añadir poco después de iniciar sesión. Introduce tu contraseña actual para confirmar."),
         TokensMessage::NamePlaceholder => text.literal("p. ej., Portátil del trabajo"),
         TokensMessage::NameHint => text.literal("Algo para reconocerlo más adelante."),
         TokensMessage::Scope => text.literal("Alcance"),

@@ -27,7 +27,7 @@
         "description": "Returns 404 when updates.report_version is disabled. API protocol metadata remains available in OpenAPI.",
         "responses": {
           "200": { "description": "The version", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Version" } } } },
-          "404": { "description": "Version reporting is disabled" }
+          "404": { "$ref": "#/components/responses/NotFound" }
         }
       }
     },
@@ -590,8 +590,10 @@
           "message": { "type": "string", "description": "For people; may change." },
           "code": {
             "type": "string",
-            "description": "rbit's own stable error code for programs: `not_found`, `unauthenticated`, `forbidden`, `blocked`, `conflict` (or a precise kind of conflict: `head_changed`, `base_changed`), `invalid`, `rate_limited`, `unavailable`, `moved` or `internal`. New codes may be added."
-          }
+            "description": "rbit's own stable error code for programs: `not_found`, `unauthenticated`, `forbidden`, `blocked`, `conflict` (or a precise kind of conflict: `head_changed`, `base_changed`), `invalid`, `rate_limited`, `unavailable`, `moved` or `internal`. A refusal names a precise code such as `protected_branch_requires_pull_request`, `protected_branch_force_push`, `protected_branch_deletion`, `protected_branch_restricted`, `no_write_access`, `token_scope_insufficient`, `repository_archived`, `repository_mirror` or, for a merge, `merge_requires_approvals`, `merge_checks_required`, `merge_conflicts`, `pull_closed`; see docs/error-codes.md. New codes may be added."
+          },
+          "rule": { "type": "string", "description": "On a refusal: the rule or setting that refused, e.g. `branch protection main (require_pull_request)`." },
+          "remediation": { "type": "string", "description": "On a refusal: a short sentence on what would make the request pass." }
         }
       },
       "ValidationError": {

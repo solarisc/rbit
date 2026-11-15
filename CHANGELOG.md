@@ -7,6 +7,25 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security hardening
+
+- A former name of a renamed user or organisation stays reserved for that account. Until
+  now anyone could take the old name at once, and with it every clone URL, link and Git
+  remote that still pointed there. The account itself may return to its former names; a
+  name is free again when its account is deleted.
+- The cross-site check for form posts compares the scheme of `Origin` as well as its host
+  and port, for browsers that send no `Sec-Fetch-Site`. A page on `http://` of the same
+  host can no longer post to an `https://` instance with a signed-in visitor's cookie.
+### Fixed
+
+- `rbit run watch --branch NAME` without `--sha` watches the tip of `NAME` on the server. It
+  watched the checkout's `HEAD` instead, so with another branch checked out it reported
+  `head_changed` for a commit that was never `NAME`'s tip. A branch the server does not have
+  is a usage error (exit 2).
+### Security
+
+- Update ammonia to 4.2.5 for RUSTSEC-2026-0533 (mutation XSS through embedded SVG and
+  MathML). rbit's sanitizer allows none of the raw-text elements the attack needs.
 ### Added
 
 - Browse and preview files in the same dialog from **Go to file** or a repository language. Clear the active filters without closing the dialog.
@@ -37,6 +56,34 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `pull_request_target`, …). The workflow page, `rbit workflow list` (human and `--json`) and
   the workflows API (`warnings`, with code `unsupported_event`) report them; the file still
   runs for the events rbit does support.
+### Refusal codes
+
+- Every refused push, merge or API call carries a stable machine code. A refused push names
+  it in its report as `ng <ref> [code] reason (fix: …)`, so `git push` users and agents see
+  the same code. API error bodies gain optional `rule` (the rule or setting that refused) and
+  `remediation` (what would make the request pass) next to `code`. Existing codes are kept;
+  the new ones are listed in [docs/error-codes.md](docs/error-codes.md).
+- `rbit --json` errors carry the same `rule` and `remediation` when the server names them.
+- Add a read-only push preflight: `GET /api/v1/repos/{owner}/{repo}/agent/preflight/push`
+  answers whether the caller's credential may make one proposed ref update, using the push gate
+  the transports use, and `rbit preflight push` asks it for the local `HEAD` without pushing.
+### Security hardening
+
+- SSH connection limits count IPv6 clients by their /64, as the HTTP rate limits do, so one
+  host with a whole /64 can no longer open more than `max_connections_per_ip` connections.
+- SSH caps connections that have not authenticated yet: 64 in total and 8 per address (IPv6:
+  per /64). A connection frees its slot when it authenticates; `auth_timeout_seconds` still
+  bounds how long it may stay unauthenticated.
+- Adding a personal access token, an SSH key or a deploy key from the web asks for your current
+  password unless you signed in during the last ten minutes. API calls with a token are not
+  affected.
+- Git over HTTP password guesses are throttled per client network, typed login and account, as
+  web sign-in already was. Three wrong guesses from one network no longer lock the owner out of
+  Git over HTTP from another network, and a login's alias (username or email) shares its budget.
+- A pull request can no longer be opened from a private fork into a public repository, and a
+  public fork that is made private stops updating its open pull requests (pushes no longer
+  copy its commits into the public repository) and cannot have them reopened. Their commits
+  would otherwise have been readable by anyone who can read only the public repository.
 
 ## [0.2.2] - 2026-11-13
 

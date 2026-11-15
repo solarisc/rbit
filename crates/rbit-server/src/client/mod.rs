@@ -22,6 +22,7 @@ mod failure;
 mod git_credential;
 mod hosts;
 mod issues;
+mod preflight;
 mod pulls;
 mod runs;
 mod runs_view;

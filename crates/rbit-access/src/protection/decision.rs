@@ -1,29 +1,49 @@
 //! The pure push and merge decisions made from the rules matching a branch.
 
+mod refusals;
+
 use super::{ProtectionRule, namespace_refusal};
 use crate::RepoAccess;
 
 /// The namespace rbit keeps pull request heads in; clients may never update it.
 pub const PULL_REFS: &str = "refs/pull/";
 
-/// Refusal reasons, as the client shows them (`! [remote rejected] main -> main (…)`).
-pub mod reasons {
-    pub const PULL_REFS: &str = "refs/pull/ is managed by rbit";
-    pub const REPLACE_REFS: &str = "refs/replace/ may not override repository objects";
-    pub const NAMESPACE_CASE: &str = "use the canonical refs/heads/ namespace";
-    pub const DELETION: &str = "protected branch: deleting it is not allowed";
-    pub const RESTRICTED: &str = "protected branch: you are not allowed to push to it";
-    pub const PULL_REQUEST: &str = "protected branch: changes must go through a pull request";
-    pub const NO_WRITE: &str = "you are not allowed to push to this repository";
-}
+pub use refusals::{codes, meta, reasons};
 
-/// One ref update a push may not make, and why. `reason` is shown to the client
-/// (`! [remote rejected] main -> main (<reason>)`) and never lists who is allowed.
+/// One ref update a push may not make, and why. `reason` is shown to the client and never
+/// lists who is allowed; `rule` names the rule or setting that refused it, when one did.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Refusal {
     /// The full ref name, e.g. `refs/heads/main`.
     pub name: String,
+    /// The stable machine code (see [`codes`]).
+    pub code: &'static str,
+    /// The human text.
     pub reason: String,
+    /// The rule or setting that refused, e.g. `branch protection main (require_pull_request)`.
+    pub rule: Option<String>,
+    /// What would make this update pass.
+    pub remediation: &'static str,
+}
+
+impl Refusal {
+    #[must_use]
+    pub fn new(name: impl Into<String>, code: &'static str, reason: impl Into<String>, remediation: &'static str) -> Self {
+        Self { name: name.into(), code, reason: reason.into(), rule: None, remediation }
+    }
+
+    /// The refusal of `name` with the stable code and remediation of a refusal `text`.
+    #[must_use]
+    pub fn of_text(name: impl Into<String>, text: &str) -> Self {
+        let (code, remediation) = meta(text);
+        Self::new(name, code, text, remediation)
+    }
+
+    /// This refusal, naming the rule or setting that refused it.
+    #[must_use]
+    pub fn with_rule(self, rule: String) -> Self {
+        Self { rule: Some(rule), ..self }
+    }
 }
 
 /// A ref update a push asks for, as the decisions read it.
@@ -34,6 +54,11 @@ pub trait RefChange {
     fn is_created(&self) -> bool;
     /// The update deletes the ref.
     fn is_deleted(&self) -> bool;
+    /// The client declared the update a non-fast-forward (a force push). Only previews set
+    /// it: a real push leaves the fast-forward check to Git (`receive.denyNonFastForwards`).
+    fn is_forced(&self) -> bool {
+        false
+    }
 }
 
 /// A branch update the server itself asks about (deleting a head branch, committing in
@@ -84,10 +109,10 @@ impl PushVerdict {
         Self::default()
     }
 
-    /// Every update refused for the same `reason`, whatever the rules say (a push to an
-    /// archived repository).
-    pub fn refuse_all<R: RefChange>(updates: &[R], reason: &str) -> Self {
-        let refusals = updates.iter().map(|update| Refusal { name: update.name().to_owned(), reason: reason.to_owned() }).collect();
+    /// Every update refused for the same refusal `text` (see [`reasons`]), whatever the
+    /// rules say (a push to an archived repository).
+    pub fn refuse_all<R: RefChange>(updates: &[R], text: &str) -> Self {
+        let refusals = updates.iter().map(|update| Refusal::of_text(update.name(), text)).collect();
         Self { refusals, deny_non_fast_forwards: false }
     }
 
@@ -191,51 +216,68 @@ pub struct PushDecision {
     pub bypasses: Vec<Bypass>,
 }
 
+/// The refusal of highest priority that one ref update got: its text, the setting of the
+/// rule that refused it and the rule's index.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Hit {
+    text: &'static str,
+    setting: &'static str,
+    rule: usize,
+}
+
 /// What one ref update would get, from the rules considered.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 struct Outcome {
-    /// The refusal reason of highest priority.
-    refusal: Option<&'static str>,
+    refusal: Option<Hit>,
     deny_non_fast_forwards: bool,
 }
 
+/// Priority of refusal texts when several rules refuse one update (lower wins).
+const PRIORITY: [&str; 4] = [reasons::DELETION, reasons::RESTRICTED, reasons::PULL_REQUEST, reasons::FORCE_PUSH];
+
 impl Outcome {
-    fn refuse(&mut self, reason: &'static str) {
-        let priority = |reason| [reasons::DELETION, reasons::RESTRICTED, reasons::PULL_REQUEST].iter().position(|r| *r == reason);
-        if self.refusal.is_none_or(|current| priority(reason) < priority(current)) {
-            self.refusal = Some(reason);
+    fn refuse(&mut self, text: &'static str, setting: &'static str, rule: usize) {
+        let priority = |text| PRIORITY.iter().position(|r| *r == text).unwrap_or(usize::MAX);
+        if self.refusal.is_none_or(|current| priority(text) < priority(current.text)) {
+            self.refusal = Some(Hit { text, setting, rule });
         }
     }
 
     fn description(self) -> String {
         match self.refusal {
-            Some(reason) => format!("refused: {reason}"),
+            Some(hit) => format!("refused: {}", hit.text),
             None if self.deny_non_fast_forwards => "force pushes denied".to_owned(),
             None => "allowed".to_owned(),
         }
     }
 }
 
-/// What `rule` does to `update` (of a branch it matches) pushed by `pusher`.
+/// What `rule` (the rule at index `index`) does to `update` (of a branch it matches)
+/// pushed by `pusher`.
 fn apply<U: PartialEq, T: PartialEq, C>(
     rule: &ProtectionRule<U, T, C>,
+    index: usize,
     pusher: &Pusher<U, T>,
     update: &impl RefChange,
     outcome: &mut Outcome,
 ) {
     let settings = &rule.settings;
     if update.is_deleted() && settings.deny_deletion {
-        outcome.refuse(reasons::DELETION);
+        outcome.refuse(reasons::DELETION, "deny_deletion", index);
     }
     if settings.restrict_pushers && !pusher.allowed_by(rule) {
-        outcome.refuse(reasons::RESTRICTED);
+        outcome.refuse(reasons::RESTRICTED, "restrict_pushers", index);
     }
     let updates_existing = !update.is_created() && !update.is_deleted();
     if updates_existing && settings.require_pull_request {
-        outcome.refuse(reasons::PULL_REQUEST);
+        outcome.refuse(reasons::PULL_REQUEST, "require_pull_request", index);
     }
     if updates_existing && settings.deny_force_push {
-        outcome.deny_non_fast_forwards = true;
+        if update.is_forced() {
+            outcome.refuse(reasons::FORCE_PUSH, "deny_force_push", index);
+        } else {
+            outcome.deny_non_fast_forwards = true;
+        }
     }
 }
 
@@ -246,7 +288,8 @@ fn apply<U: PartialEq, T: PartialEq, C>(
 ///   this is defence in depth);
 /// * branches: every matching rule applies (deletion, then restriction, then "pull
 ///   request" decide the reason shown); updates of an existing branch protected
-///   against force pushes set `deny_non_fast_forwards`;
+///   against force pushes set `deny_non_fast_forwards`, or are refused when the update
+///   is declared forced ([`RefChange::is_forced`]);
 /// * creating or updating replacement refs: refused, since they can override protected objects;
 /// * other refs (tags, notes): allowed.
 ///
@@ -259,27 +302,32 @@ pub fn decide_push<U: PartialEq, T: PartialEq, C>(
 ) -> PushDecision {
     let mut decision = PushDecision::default();
     for update in updates {
-        if let Some(reason) = namespace_refusal(update.name(), update.is_deleted()) {
-            decision.verdict.refusals.push(Refusal { name: update.name().to_owned(), reason: reason.to_owned() });
+        if let Some(text) = namespace_refusal(update.name(), update.is_deleted()) {
+            decision.verdict.refusals.push(Refusal::of_text(update.name(), text));
             continue;
         }
         if !pusher.access().can_write() {
-            decision.verdict.refusals.push(Refusal { name: update.name().to_owned(), reason: reasons::NO_WRITE.to_owned() });
+            decision.verdict.refusals.push(Refusal::of_text(update.name(), reasons::NO_WRITE));
             continue;
         }
         let Some(branch) = update.name().strip_prefix("refs/heads/") else { continue };
         let (mut enforced, mut strict) = (Outcome::default(), Outcome::default());
-        for rule in rules.iter().filter(|rule| rule.matches(branch)) {
-            apply(rule, pusher, update, &mut strict);
+        for (index, rule) in rules.iter().enumerate().filter(|(_, rule)| rule.matches(branch)) {
+            apply(rule, index, pusher, update, &mut strict);
             if !(rule.settings.allow_admin_bypass && pusher.is_admin()) {
-                apply(rule, pusher, update, &mut enforced);
+                apply(rule, index, pusher, update, &mut enforced);
             }
         }
-        if enforced != strict {
+        // A bypass is what the pusher experiences differently: the refusal or the force-push rule, not
+        // which rule of several produced it.
+        if enforced.description() != strict.description() {
             decision.bypasses.push(Bypass { name: update.name().to_owned(), instead: strict.description() });
         }
-        if let Some(reason) = enforced.refusal {
-            decision.verdict.refusals.push(Refusal { name: update.name().to_owned(), reason: reason.to_owned() });
+        if let Some(hit) = enforced.refusal {
+            let rule = &rules[hit.rule];
+            let refusal =
+                Refusal::of_text(update.name(), hit.text).with_rule(format!("branch protection {} ({})", rule.pattern, hit.setting));
+            decision.verdict.refusals.push(refusal);
         } else if enforced.deny_non_fast_forwards {
             decision.verdict.deny_non_fast_forwards = true;
         }

@@ -4,9 +4,10 @@ use axum::{
     http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
+use rbit_core::protection::codes;
 use rbit_services::mirrors;
 use rbit_transport::smart_http::{
-    access::{AccessRefusal, PUSH_FORBIDDEN, REPOSITORY_NOT_FOUND},
+    access::{AccessRefusal, PUSH_FORBIDDEN, REPOSITORY_NOT_FOUND, token_scope_forbidden},
     credentials::{AUTHENTICATION_REQUIRED, BASIC_CHALLENGE},
 };
 
@@ -18,6 +19,8 @@ pub(crate) enum Denied {
     /// Ask the client for (better) credentials.
     Challenge,
     Forbidden,
+    /// A personal access token whose scope cannot push.
+    TokenScope,
     /// Correct credentials of a suspended user.
     Suspended,
     /// The account password of a user with two-factor authentication.
@@ -46,6 +49,7 @@ impl From<AccessRefusal> for Denied {
         match refusal {
             AccessRefusal::Challenge => Self::Challenge,
             AccessRefusal::Forbidden => Self::Forbidden,
+            AccessRefusal::TokenScope => Self::TokenScope,
             AccessRefusal::NotFound => Self::NotFound,
             AccessRefusal::Mirror => Self::Mirror,
             AccessRefusal::Internal => Self::Internal,
@@ -60,6 +64,7 @@ impl IntoResponse for Denied {
                 (StatusCode::UNAUTHORIZED, [(header::WWW_AUTHENTICATE, BASIC_CHALLENGE)], AUTHENTICATION_REQUIRED).into_response()
             }
             Self::Forbidden => (StatusCode::FORBIDDEN, PUSH_FORBIDDEN).into_response(),
+            Self::TokenScope => (StatusCode::FORBIDDEN, token_scope_forbidden()).into_response(),
             Self::Suspended => (StatusCode::FORBIDDEN, "this account has been suspended").into_response(),
             Self::TokenRequired => (StatusCode::FORBIDDEN, TOKEN_REQUIRED).into_response(),
             Self::RateLimited { retry_after_seconds } => (
@@ -69,11 +74,17 @@ impl IntoResponse for Denied {
             )
                 .into_response(),
             Self::Unavailable { retry_after_seconds } => unavailable_response(UNAVAILABLE_MESSAGE, retry_after_seconds),
-            Self::Mirror => (StatusCode::FORBIDDEN, mirrors::PUSH_REFUSED).into_response(),
+            Self::Mirror => (StatusCode::FORBIDDEN, mirror_forbidden()).into_response(),
             Self::NotFound => (StatusCode::NOT_FOUND, REPOSITORY_NOT_FOUND).into_response(),
             Self::Internal => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
         }
     }
+}
+
+/// The body of a push to a pull mirror: its code, the text and the fix, as a refused push's
+/// report words them.
+pub(crate) fn mirror_forbidden() -> String {
+    format!("[{}] {} (fix: {})", codes::REPOSITORY_MIRROR, mirrors::PUSH_REFUSED, mirrors::PUSH_FIX)
 }
 
 #[cfg(test)]

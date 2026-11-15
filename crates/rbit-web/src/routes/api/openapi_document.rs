@@ -24,7 +24,7 @@ pub(super) const ACTIONS_FRAGMENTS: [(&str, &str); 3] = [
 
 /// The `OpenAPI` fragments of wave B's and milestone 3's areas, merged into [`OPENAPI`]. Each is shaped
 /// `{"paths": {…}, "components": {"schemas": {…}}}`.
-pub(super) const FRAGMENTS: [(&str, &str); 9] = [
+pub(super) const FRAGMENTS: [(&str, &str); 10] = [
     ("issues", include_str!("openapi/issues.json")),
     ("notifications", include_str!("openapi/notifications.json")),
     ("pulls", include_str!("openapi/pulls.json")),
@@ -36,6 +36,7 @@ pub(super) const FRAGMENTS: [(&str, &str); 9] = [
     ("forks", include_str!("openapi/forks.json")),
     // Milestone 3: commit statuses (S).
     ("statuses", include_str!("openapi/statuses.json")),
+    ("agent-preflight", include_str!("openapi/agent-preflight.json")),
 ];
 
 /// The served document: `openapi.json` with every fragment's paths and schemas merged in.

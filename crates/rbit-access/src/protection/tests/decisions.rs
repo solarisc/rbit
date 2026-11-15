@@ -336,3 +336,60 @@ fn replacement_refs_cannot_change_protected_objects_without_moving_a_branch() {
         }
     }
 }
+
+#[test]
+fn every_refusal_carries_a_stable_code_its_rule_and_a_remediation() {
+    let writer = Actor::Writer.pusher();
+    let protected = [rule("main", RuleSettings { require_pull_request: true, ..RuleSettings::default() })];
+
+    // Each refusal names its own code and the setting that refused it.
+    let pulled = decide_push(&protected, &writer, &[update("refs/heads/main", Kind::Update)]).verdict.refusals.remove(0);
+    assert_eq!(
+        (pulled.code, pulled.rule.as_deref()),
+        (codes::PROTECTED_PULL_REQUEST, Some("branch protection main (require_pull_request)"))
+    );
+    let deletion = decide_push(&protected, &writer, &[update("refs/heads/main", Kind::Delete)]);
+    assert_eq!(deletion.verdict.refusals[0].code, codes::PROTECTED_DELETION);
+    let restricted = [rule("main", RuleSettings { restrict_pushers: true, ..RuleSettings::default() })];
+    let restricted = decide_push(&restricted, &writer, &[update("refs/heads/main", Kind::Update)]);
+    assert_eq!(restricted.verdict.refusals[0].code, codes::PROTECTED_RESTRICTED);
+    let reader = decide_push(&protected, &Actor::Reader.pusher(), &[update("refs/heads/main", Kind::Update)]);
+    assert_eq!((reader.verdict.refusals[0].code, reader.verdict.refusals[0].rule.clone()), (codes::NO_WRITE, None));
+    let pull = decide_push(&protected, &writer, &[update("refs/pull/3/head", Kind::Update)]);
+    assert_eq!((pull.verdict.refusals[0].code, pull.verdict.refusals[0].rule.clone()), (codes::REF_RESERVED, None));
+    let archived = PushVerdict::refuse_all(&[update("refs/heads/main", Kind::Update)], reasons::ARCHIVED);
+    assert_eq!(archived.refusals[0].code, codes::REPOSITORY_ARCHIVED);
+}
+
+/// A ref update declared forced or not, as a preview may propose it.
+struct Proposal {
+    name: &'static str,
+    forced: bool,
+}
+
+impl RefChange for Proposal {
+    fn name(&self) -> &str {
+        self.name
+    }
+    fn is_created(&self) -> bool {
+        false
+    }
+    fn is_deleted(&self) -> bool {
+        false
+    }
+    fn is_forced(&self) -> bool {
+        self.forced
+    }
+}
+
+#[test]
+fn forced_updates_are_refused_where_force_pushes_are_denied() {
+    let writer = Actor::Writer.pusher();
+    let protected = [rule("main", RuleSettings::default())];
+    let forced = decide_push(&protected, &writer, &[Proposal { name: "refs/heads/main", forced: true }]);
+    let refusal = &forced.verdict.refusals[0];
+    assert_eq!((refusal.code, refusal.rule.as_deref()), (codes::PROTECTED_FORCE_PUSH, Some("branch protection main (deny_force_push)")));
+    assert!(!forced.verdict.deny_non_fast_forwards, "a refused update is not left to git");
+    let plain = decide_push(&protected, &writer, &[Proposal { name: "refs/heads/main", forced: false }]);
+    assert!(!plain.verdict.is_refused() && plain.verdict.deny_non_fast_forwards);
+}

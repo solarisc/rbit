@@ -2,7 +2,7 @@
 //! still holds, when it must be recomputed, whether a merge may go ahead (or bypass
 //! protection), and the message of the commit it makes.
 
-use super::{MergeEvaluation, MergeStrategy, Mergeability};
+use super::{MergeEvaluation, MergeStrategy, Mergeability, Requirement};
 
 /// The stored trial-merge result of an open pull request holds only for the base tip and
 /// head it was computed on; otherwise (or without a base tip) it is `Unknown`. Closed
@@ -39,15 +39,17 @@ pub fn still_expected(expected: Option<&str>, actual: &str) -> bool {
 /// Whether a merge may go ahead: `Ok(false)` when every requirement is met, `Ok(true)`
 /// when the merger asked to `bypass` and may bypass the unmet protection requirements
 /// (the caller audits it), otherwise the refusal naming the first unmet requirement.
-pub fn merge_gate(evaluation: &MergeEvaluation, bypass: bool) -> Result<bool, String> {
+///
+/// Refused with the first unmet requirement (`None` only when nothing is unmet, which
+/// `can_merge` rules out).
+pub fn merge_gate(evaluation: &MergeEvaluation, bypass: bool) -> Result<bool, Option<Requirement>> {
     if evaluation.can_merge() {
         return Ok(false);
     }
     if bypass && evaluation.can_merge_with_bypass() {
         return Ok(true);
     }
-    let unmet = evaluation.checks.iter().find(|check| !check.met).map_or_else(String::new, |check| check.requirement.describe(false));
-    Err(format!("this pull request cannot be merged: {unmet}"))
+    Err(evaluation.checks.iter().find(|check| !check.met).map(|check| check.requirement))
 }
 
 /// The default title and body of the commit a `strategy` makes.
@@ -98,9 +100,9 @@ mod tests {
             may_bypass: true,
         };
         assert_eq!(merge_gate(&blocked, true), Ok(true), "an allowed bypass");
-        assert_eq!(merge_gate(&blocked, false), Err("this pull request cannot be merged: 0 of 1 required approval".to_owned()));
+        assert_eq!(merge_gate(&blocked, false), Err(Some(Requirement::Approvals { have: 0, need: 1 })));
         let closed = MergeEvaluation { checks: vec![check(Requirement::Open, false)], may_bypass: true };
-        assert_eq!(merge_gate(&closed, true), Err("this pull request cannot be merged: The pull request is closed".to_owned()));
+        assert_eq!(merge_gate(&closed, true), Err(Some(Requirement::Open)));
         let defaults = MergeDefaults { merge: ("Merge #1", "Title"), squash: ("Title (#1)", "* a") };
         assert_eq!(merge_message(MergeStrategy::Merge, " ", "", defaults), super::super::commit_message("Merge #1", "Title"));
         assert_eq!(merge_message(MergeStrategy::Squash, "", "", defaults), super::super::commit_message("Title (#1)", "* a"));

@@ -84,6 +84,13 @@ pub enum ClientCommand {
         #[command(flatten)]
         target: Target,
     },
+    /// Asks the server whether a push would be allowed, without pushing anything.
+    Preflight {
+        #[command(subcommand)]
+        command: PreflightCommand,
+        #[command(flatten)]
+        target: Target,
+    },
     /// CI without a branch: `rbit ci run` tests the working tree (or `--commit`) on a scratch
     /// ref and watches its run.
     Ci {
@@ -136,6 +143,8 @@ pub enum ClientCommand {
         target: Target,
     },
 }
+
+use super::preflight::PreflightCommand;
 
 #[derive(Debug, Subcommand)]
 pub enum CiCommand {
@@ -220,7 +229,8 @@ pub enum RunCommand {
     /// waiting for the first to appear.
     Watch {
         run: Option<i64>,
-        /// The commit whose runs to follow, when no run id is given (default: `HEAD`).
+        /// The commit whose runs to follow, when no run id is given (default: the tip of
+        /// `--branch` on the server, else `HEAD`).
         #[arg(long, conflicts_with = "run")]
         sha: Option<String>,
         /// Exit with 1 when a run did not succeed.
@@ -232,8 +242,9 @@ pub enum RunCommand {
         /// Give up after this many seconds with `timeout` (exit 8).
         #[arg(long, default_value_t = 3600)]
         timeout: u64,
-        /// With a commit: end with `head_changed` (exit 5) when this branch moves on (the
-        /// current branch when watching `HEAD`).
+        /// The branch to watch: without `--sha`, its tip on the server is the commit watched.
+        /// The watch ends with `head_changed` (exit 5) when the branch moves on (the current
+        /// branch when watching `HEAD`).
         #[arg(long, conflicts_with = "run")]
         branch: Option<String>,
     },
@@ -340,6 +351,7 @@ pub async fn run(command: ClientCommand) -> anyhow::Result<i32> {
         | ClientCommand::Artifact { target, .. }
         | ClientCommand::Pr { target, .. }
         | ClientCommand::Status { target, .. }
+        | ClientCommand::Preflight { target, .. }
         | ClientCommand::Ci { target, .. }
         | ClientCommand::Task { target, .. }
         | ClientCommand::Bisect { target, .. }
@@ -382,6 +394,10 @@ async fn dispatch(command: ClientCommand) -> anyhow::Result<i32> {
         ClientCommand::Status { branch, target } => {
             let (api, repo) = connect(&target, true)?;
             super::status::status(&api, &repo.expect("a repository"), branch, &target.output).await
+        }
+        ClientCommand::Preflight { command: PreflightCommand::Push { branch, new }, target } => {
+            let (api, repo) = connect(&target, true)?;
+            super::preflight::push(&api, &repo.expect("a repository"), &branch, &new, &target.output).await
         }
         ClientCommand::Ci { command: CiCommand::Run(options), target } => {
             let (api, repo, remote) = connect_through(&target, true)?;
