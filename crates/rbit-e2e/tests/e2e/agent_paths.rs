@@ -83,5 +83,5 @@ async fn a_docs_only_change_needs_no_ci_and_still_merges() {
     let (_, opened) = call(reqwest::Method::POST, "pulls".to_owned(), Some(pull)).await;
     let merge = json!({ "sha": code, "merge_method": "merge" });
     let (status, blocked) = call(reqwest::Method::PUT, format!("pulls/{}/merge", opened["number"]), Some(merge)).await;
-    assert_eq!((status, blocked["code"].as_str()), (405, Some("blocked")), "{blocked}");
+    assert_eq!((status, blocked["code"].as_str()), (405, Some("merge_checks_required")), "{blocked}");
 }

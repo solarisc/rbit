@@ -1,6 +1,7 @@
 //! The smart HTTP access port over the services: the decisions are
 //! `rbit_transport::smart_http::access`'s; this adapter only opens repositories.
 
+use rbit_core::TokenScope;
 use rbit_services::{RepoContext, ServiceError};
 use rbit_transport::smart_http::access::RepositoryGate;
 
@@ -46,6 +47,10 @@ impl RepositoryGate for CallerRepositories<'_> {
 
     fn can_write(&self, ctx: &RepoContext) -> bool {
         ctx.access.can_write()
+    }
+
+    fn token_scope_refuses_writes(&self) -> bool {
+        self.caller.and_then(GitCaller::token_scope).is_some_and(|scope| !scope.allows(TokenScope::Write))
     }
 
     async fn is_mirror(&self, ctx: &RepoContext) -> Result<bool, ServiceError> {

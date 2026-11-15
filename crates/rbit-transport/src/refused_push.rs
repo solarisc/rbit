@@ -33,7 +33,7 @@ mod tests {
 
     #[test]
     fn refused_pushes_are_reported_only_when_the_client_asked() {
-        let refusals = [Refusal { name: "refs/heads/main".to_owned(), reason: "protected".to_owned() }];
+        let refusals = [Refusal::new("refs/heads/main", "protected_branch_deletion", "protected", "Ask an administrator.")];
         let with_report = commands(&["report-status"]);
         assert_eq!(push_refusal(&with_report, &refusals), PushRefusal::Report(receive::refusal(&with_report, &refusals)));
         assert_eq!(push_refusal(&commands(&[]), &refusals), PushRefusal::Explanation(receive::refusal_message(&refusals)));
