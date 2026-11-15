@@ -69,3 +69,14 @@ overlap. CI/CD changes remain entirely with PR #69.
 Reauthentication before adding a new authentication factor remains a separate
 policy question, especially for accounts that sign in exclusively through an
 external provider. This review did not establish an account-takeover path there.
+
+## Recent proof for credential changes
+
+Adding a personal access token, an SSH key or a deploy key from the web needs a recent proof
+of identity. Signing in counts, and so does confirming the account's current password, which
+the form asks for once the window has passed. The window is ten minutes. The proof is an
+HMAC under a server secret (the `sudo_proof` row of the server secrets), bound to the session,
+so a stolen session cookie cannot make one and signing out ends it. Password confirmations
+spend the account's password-check budget, as profile changes do. Accounts without a
+password must sign in again. API calls authenticated with a token are not affected; creating
+a token through the API needs an admin token without an expiry.

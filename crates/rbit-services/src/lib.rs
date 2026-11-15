@@ -47,6 +47,7 @@ pub mod repo_settings;
 pub mod repositories;
 pub mod ssh_keys;
 pub mod stars;
+pub mod sudo;
 pub mod wikis;
 // Milestone 3: commit statuses (S).
 pub mod statuses;
@@ -148,6 +149,9 @@ pub struct Services {
     pub mail: MailService,
     pub orgs: OrgService,
     pub profiles: ProfileService,
+    /// Boxed behind an `Arc`: it is one of many fields, and an inline value enlarges every
+    /// future that holds `Services`.
+    pub sudo: Arc<sudo::SudoService>,
     pub pushes: PushService,
     pub recovery: RecoveryService,
     pub repo_settings: RepoSettingsService,
@@ -291,6 +295,7 @@ impl Services {
             admin: AdminService::new(ctx.clone(), instance.clone(), passwords),
             insights: InsightsService::new(ctx.clone()),
             orgs: OrgService::new(ctx.clone(), instance.clone()),
+            sudo: Arc::new(sudo::SudoService::new(ctx.clone(), accounts.clone(), throttle.clone())),
             profiles: ProfileService::new(ctx.clone(), accounts, throttle.clone()),
             pushes: PushService::new(ctx.clone()),
             repo_settings: RepoSettingsService::new(database.clone(), ctx.repositories.clone(), ctx.events.clone()),

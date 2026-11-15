@@ -42,6 +42,7 @@ use crate::{
     audit::{AuditAction, AuditEntry, AuditService},
 };
 
+mod password_budget;
 mod password_checks;
 mod password_operations;
 mod password_sign_in;

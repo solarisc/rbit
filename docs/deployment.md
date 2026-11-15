@@ -273,6 +273,11 @@ which makes per-IP rate limits apply to everyone at once, and the audit and secu
 logs show the proxy's address (often `127.0.0.1`). rbit logs a warning the first time a
 loopback or private peer that is not listed sends forwarding headers.
 
+Password guesses are throttled per client network, per typed login and per account, for web
+sign-in and for Git over HTTP. A guesser's own network spends its own budget, so one stranger
+cannot lock an account out for users on other networks; an account-wide budget still bounds
+guesses spread over many networks.
+
 #### Cloudflare and Cloudflare Tunnel
 
 Cloudflare reports the visitor in `CF-Connecting-IP`. With `cloudflared` running on the
@@ -375,6 +380,13 @@ The built-in SSH server (`[ssh] enabled = true`, `127.0.0.1:2222` by default) is
 proxied over HTTP. Bind it to a public address (`bind = "0.0.0.0:2222"`) and expose the
 port directly, or forward port 22 to it with a firewall rule. Binding port 22 itself under
 systemd needs `CAP_NET_BIND_SERVICE` (see [systemd](#systemd)).
+
+Open connections are counted per address; an IPv6 client is counted by its /64, so one
+host with a whole /64 shares one budget. Connections that have not authenticated yet are
+capped at 64 in total and 8 per address (IPv6: per /64). A connection frees its slot as soon
+as it authenticates, and `auth_timeout_seconds` still bounds how long it may stay
+unauthenticated. Many clients behind one NAT share these per-address caps; the pre-auth
+caps are fixed and cannot be raised.
 
 ## Email
 

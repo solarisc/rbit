@@ -20,7 +20,7 @@ use russh::{
     ChannelMsg, client,
     keys::{PrivateKey, PrivateKeyWithHashAlg, PublicKeyOrCertificate, ssh_key::private::Ed25519Keypair},
 };
-
+mod pre_auth;
 const NULL_DEVICE: &str = if cfg!(windows) { "NUL" } else { "/dev/null" };
 
 struct Harness {
@@ -518,7 +518,7 @@ async fn old_names_of_renamed_repositories_keep_working_over_ssh() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn old_account_names_keep_working_over_ssh_until_reclaimed() {
+async fn old_account_names_stay_reserved_and_keep_working_over_ssh() {
     if !openssh_available() {
         return;
     }
@@ -544,8 +544,8 @@ async fn old_account_names_keep_working_over_ssh_until_reclaimed() {
     assert_ok(&harness.git(&key, &checkout, &["push", "-q", "origin", "HEAD:refs/heads/main"]).await);
     assert_ok(&harness.git(&key, &work, &["clone", "-q", &harness.url("alice/project.git"), "copy"]).await);
     assert_eq!(std::fs::read_to_string(work.join("copy/README.md")).unwrap(), "same account\n");
-    harness.database.accounts().rename(bob.id(), &"alice".parse().unwrap()).await.unwrap();
-    assert_refused(&harness.git(&key, &work, &["clone", &harness.url("alice/project.git"), "reclaimed"]).await, "not found");
+    harness.database.accounts().rename(bob.id(), &"alice".parse().unwrap()).await.unwrap_err();
+    assert_ok(&harness.git(&key, &work, &["clone", "-q", &harness.url("alice/project.git"), "reserved"]).await);
     assert_ok(&harness.git(&key, &work, &["clone", "-q", &harness.url("renamed/project.git"), "current"]).await);
     let mut harness = harness;
     harness.server.take().unwrap().shutdown().await;

@@ -38,7 +38,8 @@ pub use reviews::{
 mod creation;
 #[cfg(feature = "applications")]
 pub use creation::{
-    BranchComparison, PullCreation, PullCreationAccess, PullCreationError, PullCreationPort, PullDraft, PullInput, PullSide,
+    BranchComparison, PRIVATE_HEAD_REFUSAL, PullCreation, PullCreationAccess, PullCreationError, PullCreationPort, PullDraft, PullInput,
+    PullSide, exposes_private_head,
 };
 #[cfg(feature = "applications")]
 mod review_requests;

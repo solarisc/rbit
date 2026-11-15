@@ -2,6 +2,7 @@
 //!
 //! Milestone 2 workstream P (pull requests) owns this file.
 
+use rbit_collaboration::pulls::{PRIVATE_HEAD_REFUSAL, exposes_private_head};
 use rbit_core::{Issue, IssueId};
 
 use crate::{ServiceContext, ServiceError};
@@ -35,6 +36,17 @@ pub(crate) async fn check_reopen_with(
     };
     if !head_exists {
         return Err(ServiceError::Invalid("the head branch no longer exists; push it again to reopen".to_owned()));
+    }
+    // A fork made private after the pull request was opened cannot feed a public base again.
+    let base = database.admin().find_repository(row.repo_id).await?;
+    let head = match row.head_repo_id {
+        Some(id) => database.admin().find_repository(id).await?,
+        None => None,
+    };
+    if let (Some(base), Some(head)) = (base, head)
+        && exposes_private_head(base.repo.visibility.is_public(), head.repo.visibility.is_public())
+    {
+        return Err(ServiceError::Invalid(PRIVATE_HEAD_REFUSAL.to_owned()));
     }
     if let Some(number) = store.open_duplicate(&row).await? {
         return Err(ServiceError::Invalid(format!("pull request #{} already proposes these branches", number.get())));
