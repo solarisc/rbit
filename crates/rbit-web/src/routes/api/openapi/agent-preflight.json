@@ -1,0 +1,135 @@
+{
+  "paths": {
+    "/repos/{owner}/{repo}/agent/preflight/push": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/owner"
+        },
+        {
+          "$ref": "#/components/parameters/repo"
+        }
+      ],
+      "get": {
+        "operationId": "preflightPush",
+        "tags": [
+          "repositories"
+        ],
+        "summary": "rbit's own: would a push of one ref update be allowed",
+        "description": "The answer is `{allowed, refusals}`. Runs the checks a real push runs, in the same order (token scope, write access, pull mirror, then the push gate), for the caller's credential and one update of a branch, and pushes nothing. `old` must be the branch's current head (zeros when it does not exist), else `409 conflict`. Whether the update is a force push is decided by the server when `new` is in the repository; `force` is only used for a commit the server does not have. Each refusal is `{ref, code, message, rule, remediation}` (see docs/error-codes.md); a read-scoped token and a pull mirror are refusals, not a `403`.",
+        "parameters": [
+          {
+            "name": "ref",
+            "in": "query",
+            "required": true,
+            "description": "The full ref, such as `refs/heads/main`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "old",
+            "in": "query",
+            "required": true,
+            "description": "The commit the ref is at now: a full id, or zeros for a creation.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "new",
+            "in": "query",
+            "required": true,
+            "description": "The commit the ref would move to: a full id, or zeros for a deletion.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "required": false,
+            "description": "Whether the update is a force push (a non-fast-forward).",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ],
+        "security": [
+          {
+            "token": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The preflight answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "allowed",
+                    "refusals"
+                  ],
+                  "properties": {
+                    "allowed": {
+                      "type": "boolean"
+                    },
+                    "refusals": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "ref",
+                          "code",
+                          "message",
+                          "remediation"
+                        ],
+                        "properties": {
+                          "ref": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "message": {
+                            "type": "string"
+                          },
+                          "rule": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "description": "The rule or setting that refused, when one did."
+                          },
+                          "remediation": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationFailed"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {}
+  }
+}

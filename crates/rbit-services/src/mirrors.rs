@@ -54,6 +54,9 @@ use crate::{CreateRepository, PushService, RepoContext, RepositoryService, Servi
 use rbit_repositories::mirrors::{DUE_BATCH, adopted_branch, checked_interval, needs_default_branch};
 pub use rbit_repositories::mirrors::{MAX_CONCURRENT_FETCHES, MirrorPhase, PUSH_REFUSED, SCHEDULER_TICK};
 
+/// What a refused push to a pull mirror should do instead (the remediation of its refusal).
+pub const PUSH_FIX: &str = "Push to the upstream repository instead.";
+
 mod port;
 /// How long [`MirrorService::shutdown`] waits for running fetches.
 const SHUTDOWN_GRACE: Duration = Duration::from_secs(10);

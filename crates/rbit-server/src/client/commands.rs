@@ -84,6 +84,13 @@ pub enum ClientCommand {
         #[command(flatten)]
         target: Target,
     },
+    /// Asks the server whether a push would be allowed, without pushing anything.
+    Preflight {
+        #[command(subcommand)]
+        command: PreflightCommand,
+        #[command(flatten)]
+        target: Target,
+    },
     /// CI without a branch: `rbit ci run` tests the working tree (or `--commit`) on a scratch
     /// ref and watches its run.
     Ci {
@@ -136,6 +143,8 @@ pub enum ClientCommand {
         target: Target,
     },
 }
+
+use super::preflight::PreflightCommand;
 
 #[derive(Debug, Subcommand)]
 pub enum CiCommand {
@@ -342,6 +351,7 @@ pub async fn run(command: ClientCommand) -> anyhow::Result<i32> {
         | ClientCommand::Artifact { target, .. }
         | ClientCommand::Pr { target, .. }
         | ClientCommand::Status { target, .. }
+        | ClientCommand::Preflight { target, .. }
         | ClientCommand::Ci { target, .. }
         | ClientCommand::Task { target, .. }
         | ClientCommand::Bisect { target, .. }
@@ -384,6 +394,10 @@ async fn dispatch(command: ClientCommand) -> anyhow::Result<i32> {
         ClientCommand::Status { branch, target } => {
             let (api, repo) = connect(&target, true)?;
             super::status::status(&api, &repo.expect("a repository"), branch, &target.output).await
+        }
+        ClientCommand::Preflight { command: PreflightCommand::Push { branch, new }, target } => {
+            let (api, repo) = connect(&target, true)?;
+            super::preflight::push(&api, &repo.expect("a repository"), &branch, &new, &target.output).await
         }
         ClientCommand::Ci { command: CiCommand::Run(options), target } => {
             let (api, repo, remote) = connect_through(&target, true)?;

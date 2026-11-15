@@ -31,6 +31,7 @@ These come from the push gate that HTTP and SSH pushes run before Git.
 | `no_write_access` | you may not write to this repository | Ask an administrator for write access. |
 | `token_scope_insufficient` | your personal access token's scope has no write right (API: the scope is narrower than the request needs) | Use a personal access token with the write scope, created under Settings > Access tokens. |
 | `repository_archived` | the repository is archived and read-only | Ask an administrator to unarchive it. |
+| `repository_mirror` | the repository is a pull mirror, which only changes by fetching its upstream | Push to the upstream repository instead. |
 | `ref_reserved` | the ref is in a namespace rbit manages (`refs/pull/`, `refs/replace/`, `refs/merge-queue/`, reserved branch names) | Push to a branch under `refs/heads/`. |
 | `ref_not_canonical` | the branch is not spelled in the canonical `refs/heads/` namespace | Use the canonical spelling. |
 | `scratch_ref_not_owned` | a `refs/scratch/` ref is not under your own name | Push under `refs/scratch/<your name>/`. |

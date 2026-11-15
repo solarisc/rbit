@@ -28,7 +28,7 @@ fn rewrite(git: &Git, dir: &Path) -> String {
 }
 
 /// Adds the rule described by `fields` (checkbox names map to `"on"`); returns its page.
-async fn add_rule(client: &Client, repo: &str, fields: &[(&str, &str)]) -> String {
+pub(super) async fn add_rule(client: &Client, repo: &str, fields: &[(&str, &str)]) -> String {
     let response = client.post(&format!("/{repo}/settings/branches"), fields).await;
     response.expect_status(StatusCode::SEE_OTHER);
     let location = response.location().expect("redirects to the rule").to_owned();

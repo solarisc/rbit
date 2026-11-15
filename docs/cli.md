@@ -92,6 +92,33 @@ issue a `feature/<n>-…` branch works on, and `next`, the command worth running
 run), `indeterminate` (nobody can say why the jobs failed: a lost runner, a log cut short),
 `cancelled` and `success`, so "nothing yet" is never confused with "nothing expected".
 
+## Push preflight
+
+```bash
+rbit preflight push [--ref BRANCH] [--new REV]
+```
+
+Asks the server whether this credential may push `--new` (the checkout's `HEAD` by default)
+to `--ref` (`main` by default), and changes nothing. The server runs the same checks a real push
+runs, in the same order (token scope, write access, mirror, then the push gate), against the
+branch's head on the server. `old` is that head as this command read it; a head that moved in
+between is a `409 conflict`. The answer lists each refusal with its
+[error code](error-codes.md), the rule that refused and the fix.
+
+Whether the update is a force push is decided by the server when `--new` is already in the
+repository: the server checks that the old head is an ancestor of the new commit. Only a commit the
+server has yet does the client's declaration count, and this command declares a force push when
+the old head is not an ancestor of `--new` in this checkout. A pull mirror refuses every push
+(`repository_mirror`), and a personal access token without the write scope is refused
+(`token_scope_insufficient`) before the rules are consulted. Exit 0 when the push would be
+allowed, 3 when it would be refused. `--json` prints `rbit.preflight/1`.
+
+The REST form is `GET /api/v1/repos/{owner}/{repo}/agent/preflight/push?ref=refs/heads/…&old=&new=&force=`,
+answering `{"allowed": bool, "refusals": [{"ref", "code", "message", "rule", "remediation"}]}`. It
+answers `409 conflict` when `old` is not the branch's head, and a `403` only for a workflow task
+credential, which is refused by the API before any rule is read. A deploy key cannot call the
+API, so preflight does not answer for one.
+
 ## Workflow runs
 
 ```bash

@@ -12,6 +12,7 @@ pub mod reasons {
     pub const PULL_REQUEST: &str = "protected branch: changes must go through a pull request";
     pub const NO_WRITE: &str = "you are not allowed to push to this repository";
     pub const TOKEN_SCOPE: &str = "this token's scope does not allow pushing; it needs the write scope";
+    pub const FORCE_PUSH: &str = "protected branch: force pushes are not allowed";
     pub const ARCHIVED: &str = "This repository is archived and read-only; an administrator can unarchive it in its settings";
     /// The API's wording of the same refusal (its error body keeps GitHub's words).
     pub const ARCHIVED_API: &str = "Repository was archived so is read-only.";
@@ -29,6 +30,7 @@ pub mod codes {
     pub const NO_WRITE: &str = "no_write_access";
     pub const TOKEN_SCOPE: &str = "token_scope_insufficient";
     pub const REPOSITORY_ARCHIVED: &str = "repository_archived";
+    pub const REPOSITORY_MIRROR: &str = "repository_mirror";
     pub const SCRATCH_OWNER: &str = "scratch_ref_not_owned";
     pub const SCRATCH_LIMIT: &str = "scratch_ref_limit";
     pub const TASK_TAG: &str = "task_tag_moved";
@@ -46,6 +48,7 @@ pub mod codes {
         NO_WRITE,
         TOKEN_SCOPE,
         REPOSITORY_ARCHIVED,
+        REPOSITORY_MIRROR,
         SCRATCH_OWNER,
         SCRATCH_LIMIT,
         TASK_TAG,
@@ -68,6 +71,9 @@ pub fn meta(text: &str) -> (&'static str, &'static str) {
             (codes::PROTECTED_RESTRICTED, "Ask a repository administrator to allow you, or one of your teams, in this rule.")
         }
         reasons::PULL_REQUEST => (codes::PROTECTED_PULL_REQUEST, "Push a branch and open a pull request into this branch instead."),
+        reasons::FORCE_PUSH => {
+            (codes::PROTECTED_FORCE_PUSH, "Push without force (a fast-forward), or ask an administrator to change the rule.")
+        }
         reasons::NO_WRITE => (codes::NO_WRITE, "Ask a repository administrator for write access."),
         reasons::TOKEN_SCOPE => (codes::TOKEN_SCOPE, "Use a personal access token with the write scope."),
         reasons::ARCHIVED | reasons::ARCHIVED_API => {
