@@ -182,8 +182,8 @@ impl World {
             .method(Method::POST)
             .uri(format!("/alice/rocket/actions/runs/{}/approve", run.number))
             .header(header::COOKIE, format!("rbit_session={session}"))
-            .header(header::HOST, "localhost:3000")
-            .header(header::ORIGIN, "http://localhost:3000")
+            .header(header::HOST, "git.example.com")
+            .header(header::ORIGIN, "https://git.example.com")
             .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
             .body(Body::from(body))
             .unwrap();
