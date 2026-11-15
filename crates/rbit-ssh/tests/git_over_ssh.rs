@@ -20,7 +20,7 @@ use russh::{
     ChannelMsg, client,
     keys::{PrivateKey, PrivateKeyWithHashAlg, PublicKeyOrCertificate, ssh_key::private::Ed25519Keypair},
 };
-
+mod pre_auth;
 const NULL_DEVICE: &str = if cfg!(windows) { "NUL" } else { "/dev/null" };
 
 struct Harness {

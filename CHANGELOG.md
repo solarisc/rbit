@@ -52,6 +52,11 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Security hardening
 
+- SSH connection limits count IPv6 clients by their /64, as the HTTP rate limits do, so one
+  host with a whole /64 can no longer open more than `max_connections_per_ip` connections.
+- SSH caps connections that have not authenticated yet: 64 in total and 8 per address (IPv6:
+  per /64). A connection frees its slot when it authenticates; `auth_timeout_seconds` still
+  bounds how long it may stay unauthenticated.
 - Adding a personal access token, an SSH key or a deploy key from the web asks for your current
   password unless you signed in during the last ten minutes. API calls with a token are not
   affected.
