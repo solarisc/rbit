@@ -4,6 +4,8 @@ labels! {
     /// Fixed labels of `/settings/keys`.
     KeysMessage, "settings.keys" {
         Title = "title" => "SSH keys",
+        CurrentPassword = "current-password" => "Current password",
+        PasswordHint = "password-hint" => "Credentials can be added only shortly after you sign in. Enter your current password to confirm.",
         NewKey = "new" => "New SSH key",
         TitleLabel = "title-label" => "Title",
         Optional = "optional" => "optional",

@@ -8,6 +8,8 @@ use crate::catalog::settings::keys::{KeyLabel, KeysMessage};
 entries! { Es:
     KeysMessage => MessageWriter |text| {
         KeysMessage::Title => text.literal("Claves SSH"),
+        KeysMessage::CurrentPassword => text.literal("Contraseña actual"),
+        KeysMessage::PasswordHint => text.literal("Las credenciales solo se pueden añadir poco después de iniciar sesión. Introduce tu contraseña actual para confirmar."),
         KeysMessage::NewKey => text.literal("Nueva clave SSH"),
         KeysMessage::TitleLabel => text.literal("Título"),
         KeysMessage::Optional => text.literal("opcional"),

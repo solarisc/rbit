@@ -9,6 +9,8 @@ labels! {
         Copy = "copy" => "Copy",
         NewToken = "new" => "New token",
         Name = "name" => "Name",
+        CurrentPassword = "current-password" => "Current password",
+        PasswordHint = "password-hint" => "Credentials can be added only shortly after you sign in. Enter your current password to confirm.",
         NamePlaceholder = "name-placeholder" => "e.g. Work laptop",
         NameHint = "name-hint" => "Something to recognise it by later.",
         Scope = "scope" => "Scope",

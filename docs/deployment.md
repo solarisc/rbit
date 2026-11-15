@@ -273,6 +273,11 @@ which makes per-IP rate limits apply to everyone at once, and the audit and secu
 logs show the proxy's address (often `127.0.0.1`). rbit logs a warning the first time a
 loopback or private peer that is not listed sends forwarding headers.
 
+Password guesses are throttled per client network, per typed login and per account, for web
+sign-in and for Git over HTTP. A guesser's own network spends its own budget, so one stranger
+cannot lock an account out for users on other networks; an account-wide budget still bounds
+guesses spread over many networks.
+
 #### Cloudflare and Cloudflare Tunnel
 
 Cloudflare reports the visitor in `CF-Connecting-IP`. With `cloudflared` running on the

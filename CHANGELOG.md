@@ -7,6 +7,25 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security hardening
+
+- A former name of a renamed user or organisation stays reserved for that account. Until
+  now anyone could take the old name at once, and with it every clone URL, link and Git
+  remote that still pointed there. The account itself may return to its former names; a
+  name is free again when its account is deleted.
+- The cross-site check for form posts compares the scheme of `Origin` as well as its host
+  and port, for browsers that send no `Sec-Fetch-Site`. A page on `http://` of the same
+  host can no longer post to an `https://` instance with a signed-in visitor's cookie.
+### Fixed
+
+- `rbit run watch --branch NAME` without `--sha` watches the tip of `NAME` on the server. It
+  watched the checkout's `HEAD` instead, so with another branch checked out it reported
+  `head_changed` for a commit that was never `NAME`'s tip. A branch the server does not have
+  is a usage error (exit 2).
+### Security
+
+- Update ammonia to 4.2.5 for RUSTSEC-2026-0533 (mutation XSS through embedded SVG and
+  MathML). rbit's sanitizer allows none of the raw-text elements the attack needs.
 ### Added
 
 - Browse and preview files in the same dialog from **Go to file** or a repository language. Clear the active filters without closing the dialog.
@@ -38,6 +57,12 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - SSH caps connections that have not authenticated yet: 64 in total and 8 per address (IPv6:
   per /64). A connection frees its slot when it authenticates; `auth_timeout_seconds` still
   bounds how long it may stay unauthenticated.
+- Adding a personal access token, an SSH key or a deploy key from the web asks for your current
+  password unless you signed in during the last ten minutes. API calls with a token are not
+  affected.
+- Git over HTTP password guesses are throttled per client network, typed login and account, as
+  web sign-in already was. Three wrong guesses from one network no longer lock the owner out of
+  Git over HTTP from another network, and a login's alias (username or email) shares its budget.
 - A pull request can no longer be opened from a private fork into a public repository, and a
   public fork that is made private stops updating its open pull requests (pushes no longer
   copy its commits into the public repository) and cannot have them reopened. Their commits

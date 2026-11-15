@@ -17,8 +17,8 @@ async fn send(fixture: &Fixture, user: &rbit_core::User, method: Method, path: &
         .method(method)
         .uri(path)
         .header(header::COOKIE, format!("rbit_session={}", token.encode()))
-        .header(header::HOST, "localhost:3000")
-        .header(header::ORIGIN, "http://localhost:3000")
+        .header(header::HOST, "git.example.com")
+        .header(header::ORIGIN, "https://git.example.com")
         .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
         .body(Body::from(form.to_owned()))
         .unwrap();
