@@ -16,6 +16,46 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The cross-site check for form posts compares the scheme of `Origin` as well as its host
   and port, for browsers that send no `Sec-Fetch-Site`. A page on `http://` of the same
   host can no longer post to an `https://` instance with a signed-in visitor's cookie.
+### Fixed
+
+- `rbit run watch --branch NAME` without `--sha` watches the tip of `NAME` on the server. It
+  watched the checkout's `HEAD` instead, so with another branch checked out it reported
+  `head_changed` for a commit that was never `NAME`'s tip. A branch the server does not have
+  is a usage error (exit 2).
+### Security
+
+- Update ammonia to 4.2.5 for RUSTSEC-2026-0533 (mutation XSS through embedded SVG and
+  MathML). rbit's sanitizer allows none of the raw-text elements the attack needs.
+### Added
+
+- Browse and preview files in the same dialog from **Go to file** or a repository language. Clear the active filters without closing the dialog.
+- Create a repository from the files on another repository's default branch, with a fresh initial commit.
+- See how a fork's default branch compares with upstream and fast-forward it from the repository page when allowed.
+
+### Changed
+
+- The runs list shows how far an unfinished run is: a ring filled by its finished jobs with
+  the count beside it (`5/8`), and under the run whether jobs are running or it is waiting
+  for a runner.
+
+### Fixed
+
+- A workflow run that has started is finished before a run pushed after it starts. Runners
+  were given the job that had waited longest, and a job enters the queue only when the jobs
+  it `needs` finish, so with busy runners the later jobs of a run waited behind the first
+  jobs of every newer run: a run one short job from done could sit for the length of the
+  whole queue. Runs in progress now get their next jobs first, the run that started first
+  going first; runs that have not started still start in the order they were queued, and a
+  run started again waits its turn. A cancelled run's `if: always()` jobs are served with
+  the runs in progress, so the run finishes instead of staying queued. A waiting job's
+  `ahead` count follows the same order.
+
+### Security hardening
+
+- A pull request can no longer be opened from a private fork into a public repository, and a
+  public fork that is made private stops updating its open pull requests (pushes no longer
+  copy its commits into the public repository) and cannot have them reopened. Their commits
+  would otherwise have been readable by anyone who can read only the public repository.
 
 ## [0.2.2] - 2026-11-13
 

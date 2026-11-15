@@ -10,20 +10,12 @@ use std::process::Command;
 use rbit_e2e::{Git, PASSWORD, TestServer};
 use serde_json::{Value, json};
 
-use super::actions_runner::runner_binary;
+use super::actions_runner::test_binary;
 
 const WORKFLOW: &str =
     "name: CI\non: [push, pull_request]\njobs:\n  test:\n    runs-on: nobody-has-this-label\n    steps:\n      - run: true\n";
 
-/// The `rbit` binary built beside `rbit-runner`.
-fn rbit_binary() -> std::path::PathBuf {
-    let runner = runner_binary();
-    let binary = runner.with_file_name(format!("rbit{}", std::env::consts::EXE_SUFFIX));
-    assert!(binary.exists(), "{} is missing: build the workspace (`cargo build -p rbit-server`) first", binary.display());
-    binary
-}
-
-struct Agent<'a> {
+pub(super) struct Agent<'a> {
     server: &'a TestServer,
     http: reqwest::Client,
     token: String,
@@ -31,8 +23,12 @@ struct Agent<'a> {
     config: tempfile::TempDir,
 }
 
-impl Agent<'_> {
-    async fn send(&self, method: reqwest::Method, path: &str, body: Option<Value>) -> (u16, Value) {
+impl<'a> Agent<'a> {
+    pub(super) fn new(server: &'a TestServer, token: String) -> Self {
+        Self { server, http: reqwest::Client::builder().no_proxy().build().unwrap(), token, config: tempfile::tempdir().unwrap() }
+    }
+
+    pub(super) async fn send(&self, method: reqwest::Method, path: &str, body: Option<Value>) -> (u16, Value) {
         let mut request = self.http.request(method, self.server.url(&format!("/api/v1/{path}"))).bearer_auth(&self.token);
         if let Some(body) = body {
             request = request.header("Content-Type", "application/json").body(body.to_string());
@@ -43,13 +39,13 @@ impl Agent<'_> {
         (status, if text.is_empty() { Value::Null } else { serde_json::from_str(&text).expect("JSON") })
     }
 
-    async fn get(&self, path: &str) -> (u16, Value) {
+    pub(super) async fn get(&self, path: &str) -> (u16, Value) {
         self.send(reqwest::Method::GET, path, None).await
     }
 
     /// `rbit <args> --repo alice/rocket --json`: the exit code and the one JSON object.
-    fn cli(&self, args: &[&str]) -> (i32, Value) {
-        let output = Command::new(rbit_binary())
+    pub(super) fn cli(&self, args: &[&str]) -> (i32, Value) {
+        let output = Command::new(test_binary("rbit", "rbit-server"))
             .args(args)
             .args(["--repo", "alice/rocket", "--hostname", self.server.base_url(), "--json"])
             .env("RBIT_TOKEN", &self.token)
@@ -78,12 +74,7 @@ async fn an_agent_finds_the_runs_of_its_commit_and_reads_codes_not_prose() {
     alice.create_repo("alice", "rocket", "public").await;
     crate::enable_actions(&alice, "alice", "rocket").await;
     let token = alice.create_token("agent", "write").await;
-    let agent = Agent {
-        server: &server,
-        http: reqwest::Client::builder().no_proxy().build().unwrap(),
-        token,
-        config: tempfile::tempdir().unwrap(),
-    };
+    let agent = Agent::new(&server, token);
 
     let git = Git::new();
     let sample = git.sample();
@@ -148,6 +139,10 @@ async fn an_agent_finds_the_runs_of_its_commit_and_reads_codes_not_prose() {
     assert_eq!(listed["runs"][0].as_object().unwrap().len(), 2, "only the asked-for fields");
     let (code, checks) = agent.cli(&["pr", "checks", "1"]);
     assert_eq!((code, checks["state"].as_str()), (8, Some("pending")), "queued checks are pending: {checks}");
+    let (code, watch) = agent.cli(&["pr", "watch", "1", "--timeout", "0"]);
+    assert_eq!((code, watch["schema"].as_str(), watch["head"].as_str()), (0, Some("rbit.pr-watch/1"), Some(head.as_str())), "{watch}");
+    assert_eq!(watch["changed"], true, "{watch}");
+    assert!(watch["cursor"].is_string(), "{watch}");
     let (code, merge) = agent.cli(&["pr", "merge", "1", "--head", &base]);
     assert_eq!((code, merge["code"].as_str()), (5, Some("head_changed")), "{merge}");
     let (code, gone) = agent.cli(&["run", "view", "999999"]);
@@ -180,6 +175,14 @@ async fn an_agent_finds_the_runs_of_its_commit_and_reads_codes_not_prose() {
     assert_eq!((first["changed"].as_bool(), first["state"].as_str(), first["done"].as_bool()), (Some(true), Some("queued"), Some(false)));
     let (_, again) = agent.get(&format!("{watch}&cursor={}", first["cursor"].as_str().unwrap())).await;
     assert_eq!(again["changed"], false);
+    // `--branch` alone watches the branch's tip on the server, not the checkout's `HEAD` (the
+    // test runs inside rbit's own checkout, whose `HEAD` is another commit). The job waits for
+    // a label no runner has, so the watch says so at once. A branch the server lacks is a usage error.
+    let (code, tip) = agent.cli(&["run", "watch", "--branch", "agent-change", "--timeout", "5"]);
+    assert_eq!((code, tip["code"].as_str()), (8, Some("no_runner")), "{tip}");
+    assert!(tip["message"].as_str().unwrap().contains(&head[..12]), "the branch's tip is watched: {tip}");
+    let (code, unknown_branch) = agent.cli(&["run", "watch", "--branch", "no-such-branch", "--timeout", "5"]);
+    assert_eq!((code, unknown_branch["code"].as_str()), (2, Some("usage")), "{unknown_branch}");
     // A commit the repository does not have (yet) is not "no run will come".
     let (_, unknown) = agent.get(&format!("repos/alice/rocket/agent/watch?sha={}&timeout=1", "2".repeat(40))).await;
     assert_eq!((unknown["state"].as_str(), unknown["done"].as_bool()), (Some("not_started"), Some(false)), "{unknown}");
@@ -188,8 +191,10 @@ async fn an_agent_finds_the_runs_of_its_commit_and_reads_codes_not_prose() {
     git.ok(&sample.dir, &["push", "--quiet", &url, "agent-change"]);
     let (_, moved) = agent.get(&format!("{watch}&cursor={}", first["cursor"].as_str().unwrap())).await;
     assert_eq!(moved["head_changed"]["sha"], newer.as_str(), "{moved}");
+    // `--sha` wins over `--branch`: the older commit is watched, not the branch's newer tip.
     let (code, cli_moved) = agent.cli(&["run", "watch", "--sha", &head, "--branch", "agent-change", "--timeout", "5"]);
     assert_eq!((code, cli_moved["code"].as_str()), (5, Some("head_changed")), "{cli_moved}");
+    assert!(cli_moved["message"].as_str().unwrap().contains(&head[..12]), "{cli_moved}");
 
     // A commit with no workflow files expects no run: said at once, not after a wait.
     git.ok(&sample.dir, &["checkout", "--quiet", "-b", "no-ci", "main"]);
