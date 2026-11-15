@@ -7,6 +7,10 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Security
+
+- Update ammonia to 4.2.5 for RUSTSEC-2026-0533 (mutation XSS through embedded SVG and
+  MathML). rbit's sanitizer allows none of the raw-text elements the attack needs.
 ### Added
 
 - Browse and preview files in the same dialog from **Go to file** or a repository language. Clear the active filters without closing the dialog.
