@@ -67,7 +67,13 @@ impl PullCreationPort for Script {
     }
 }
 
-const ACCESS: PullCreationAccess = PullCreationAccess { same_repo: true, base_readable: true, head_readable: true, base_archived: false };
+const ACCESS: PullCreationAccess = PullCreationAccess {
+    same_repo: true,
+    base_readable: true,
+    head_readable: true,
+    base_archived: false,
+    private_head_into_public_base: false,
+};
 
 fn input<'a>(base: &'a str, head: &'a str, title: &'a str) -> PullInput<'a> {
     PullInput { base_branch: base, head_branch: head, title, body: "", draft: false }
@@ -121,4 +127,16 @@ async fn titles_default_to_the_single_commit_or_the_branch() {
         Script { comparison: BranchComparison { related: true, ahead: 2, newest_summary: Some("Newest".into()) }, ..Script::default() };
     assert_eq!(open(&two, ACCESS, input("main", "fix", "")).await.unwrap().title.as_str(), "fix");
     assert_eq!(open(&two, ACCESS, input("main", "fix", " Mine ")).await.unwrap().title.as_str(), "Mine");
+}
+
+#[tokio::test]
+async fn a_private_fork_cannot_open_a_pull_request_into_a_public_repository() {
+    let private_fork = PullCreationAccess { same_repo: false, private_head_into_public_base: true, ..ACCESS };
+    assert_eq!(
+        invalid(open(&Script::default(), private_fork, input("main", "x", "")).await),
+        "a pull request cannot be opened from a private fork into a public repository: people who can read only the public repository would see its commits"
+    );
+    // The same fork into a non-public base is not this refusal.
+    let private_base = PullCreationAccess { same_repo: false, ..ACCESS };
+    assert!(open(&Script::default(), private_base, input("main", "x", "")).await.is_ok());
 }

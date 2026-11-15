@@ -8,6 +8,10 @@
 //! * A fork cannot be made public while its parent, or any repository further up the
 //!   fork network, is private ([`ForkQueries::has_private_ancestor`]): that would publish
 //!   the private history. Forks are not removed when someone loses access to the parent.
+//! * A pull request cannot be opened from a private fork into a public repository, and a
+//!   public fork that is made private stops feeding its open pull requests: pushes no longer
+//!   update them and they cannot be reopened. Pull requests from private heads into public
+//!   bases would publish private commits, so their refusal is the same at every step.
 //! * Metadata precedes copying. Copy/relationship errors attempt disk and SQL rollback;
 //!   cancellation or failed cleanup can still require repair.
 //! * Forking publishes a fork event, never a creation event.

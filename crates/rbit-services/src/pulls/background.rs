@@ -9,7 +9,7 @@
 
 use std::{sync::Arc, sync::atomic::Ordering, time::Duration};
 
-use rbit_collaboration::pulls::{outdated_comments, outdated_requests, trial_merge_is_current};
+use rbit_collaboration::pulls::{exposes_private_head, outdated_comments, outdated_requests, trial_merge_is_current};
 use rbit_core::{
     AccountId, Issue, PushSource, RefUpdate, RepoId, StateReason, TimelineEvent, Timestamp,
     issue::IssueAction,
@@ -163,6 +163,12 @@ impl PullService {
             },
             None => return Ok(()),
         };
+        // A fork that went private after the pull request was opened must not feed its commits
+        // into the public base (`refs/pull/N/head`, the pull request's commits and diff).
+        if exposes_private_head(base.repo.repo.visibility.is_public(), head.repo.repo.visibility.is_public()) {
+            tracing::info!(pull = issue.number.get(), "head moved in a private fork of a public repository; not synced");
+            return Ok(());
+        }
         let mut moved = pull.clone();
         moved.head_sha.clone_from(after);
         let stored = self.store_head(&base, &head, &moved, issue.number).await?;
