@@ -52,6 +52,9 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Security hardening
 
+- Git over HTTP password guesses are throttled per client network, typed login and account, as
+  web sign-in already was. Three wrong guesses from one network no longer lock the owner out of
+  Git over HTTP from another network, and a login's alias (username or email) shares its budget.
 - A pull request can no longer be opened from a private fork into a public repository, and a
   public fork that is made private stops updating its open pull requests (pushes no longer
   copy its commits into the public repository) and cannot have them reopened. Their commits
