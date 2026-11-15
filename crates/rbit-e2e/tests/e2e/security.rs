@@ -41,9 +41,12 @@ async fn html_responses_carry_security_headers() {
 async fn session_cookie_is_http_only_and_same_site() {
     let server = TestServer::start();
     let signed_up = server.client().sign_up("alice").await;
-    let cookie = signed_up.header("set-cookie").expect("a session cookie");
-    assert!(cookie.starts_with("rbit_session="), "{cookie}");
-    assert!(cookie.contains("HttpOnly") && cookie.contains("SameSite=Lax") && cookie.contains("Path=/"), "{cookie}");
+    // Signing up also stamps the recent-proof window, and cookies are sent in no fixed order.
+    let cookies: Vec<&str> = signed_up.headers.get_all("set-cookie").iter().filter_map(|value| value.to_str().ok()).collect();
+    assert!(cookies.iter().any(|cookie| cookie.starts_with("rbit_session=")), "{cookies:?}");
+    for cookie in cookies {
+        assert!(cookie.contains("HttpOnly") && cookie.contains("SameSite=Lax") && cookie.contains("Path=/"), "{cookie}");
+    }
 }
 
 #[tokio::test]

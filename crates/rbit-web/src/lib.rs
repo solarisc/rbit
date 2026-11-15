@@ -28,6 +28,7 @@ pub mod render;
 pub mod routes;
 pub mod runtime;
 pub mod state;
+mod sudo;
 mod supervise;
 pub mod themes;
 pub mod timing;

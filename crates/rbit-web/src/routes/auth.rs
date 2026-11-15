@@ -72,7 +72,10 @@ pub async fn logout(State(state): State<AppState>, jar: CookieJar) -> WebResult<
     if let Some(token) = middleware::session_token(&jar) {
         state.services.accounts.end_session(&token).await?;
     }
-    let jar = jar.remove(Cookie::build(SESSION_COOKIE).path("/")).remove(Cookie::build(middleware::LEGACY_SESSION_COOKIE).path("/"));
+    let jar = jar
+        .remove(Cookie::build(SESSION_COOKIE).path("/"))
+        .remove(Cookie::build(middleware::LEGACY_SESSION_COOKIE).path("/"))
+        .remove(Cookie::build(crate::sudo::COOKIE).path("/"));
     Ok((jar, Redirect::to("/")).into_response())
 }
 
@@ -137,7 +140,9 @@ pub(crate) async fn start_session(
         .secure(https)
         .path("/")
         .max_age(time::Duration::seconds(state.services.accounts.session_lifetime_seconds()));
-    let jar = jar.add(cookie);
+    // Signing in is itself a fresh proof of identity for credential changes.
+    let stamp = state.services.sudo.stamp(&token.encode(), crate::sudo::now()).await?;
+    let jar = crate::sudo::issue(jar.add(cookie), https, stamp);
     // The user's theme follows them: restore it on this device. A failure here must not
     // block signing in; the device simply keeps its current theme.
     let jar = match state.services.preferences.theme(user).await {

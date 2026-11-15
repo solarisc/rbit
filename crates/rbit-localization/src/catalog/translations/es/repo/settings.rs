@@ -66,6 +66,8 @@ entries! { Es:
         RepoSettingsLabel::TitlePlaceholder => text.literal("p. ej., Servidor de producción"),
         RepoSettingsLabel::TitleHint => text.literal("Por defecto, el comentario de la clave."),
         RepoSettingsLabel::Key => text.literal("Clave"),
+        RepoSettingsLabel::CurrentPassword => text.literal("Contraseña actual"),
+        RepoSettingsLabel::PasswordHint => text.literal("Las credenciales solo se pueden añadir poco después de iniciar sesión. Introduce tu contraseña actual para confirmar."),
         RepoSettingsLabel::KeyHint => text.literal(
             "Una clave solo puede pertenecer a un repositorio o a una cuenta; genera una clave distinta para cada uno.",
         ),

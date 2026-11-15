@@ -52,6 +52,9 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Security hardening
 
+- Adding a personal access token, an SSH key or a deploy key from the web asks for your current
+  password unless you signed in during the last ten minutes. API calls with a token are not
+  affected.
 - Git over HTTP password guesses are throttled per client network, typed login and account, as
   web sign-in already was. Three wrong guesses from one network no longer lock the owner out of
   Git over HTTP from another network, and a login's alias (username or email) shares its budget.

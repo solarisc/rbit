@@ -46,6 +46,8 @@ labels! {
         TitleHint => "repo.keys.title-hint", "Defaults to the key's comment.";
         Key => "repo.keys.key", "Key";
         KeyHint => "repo.keys.key-hint", "A key can belong to only one repository or account; generate a separate key for each.";
+        CurrentPassword => "repo.keys.current-password", "Current password";
+        PasswordHint => "repo.keys.password-hint", "Credentials can be added only shortly after you sign in. Enter your current password to confirm.";
         AllowWrite => "repo.keys.allow-write", "Allow write access";
         AllowWriteHint => "repo.keys.allow-write-hint", "The key can push to this repository as well as clone it.";
         AddDeployKey => "repo.keys.add", "Add deploy key";
